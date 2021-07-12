@@ -4,7 +4,7 @@ struct GMM
     d::Int                         # dimension of Gaussian
     w::AbstractVector                      # weights: n
     μ::AbstractArray                       # means: n x d
-    Σ::AbstractVector{AbstractArray} # diagonal covariances n x d, or Vector n of d x d full covariances
+    Σ::AbstractVector{AbstractArray} # diagonal covmatariances n x d, or Vector n of d x d full covmatariances
     #hist::Array{History}           # history of this GMM
 end
 
@@ -15,7 +15,7 @@ function EM(
 ) where T <: Real
     n, d = size(X)
     # init 
-    R = kmeans(X', K; maxiter=maxiter)
+    R = kmeans(X', K; init=init, tol=tol, maxiter=maxiter)
     w = reshape(counts(R) ./ n, 1, K)  # cluster size
     μ = copy(R.centers)
     Σ = [cov(X) for k ∈ 1:K]
@@ -35,7 +35,7 @@ function EM!(
     n == n2 || throw(DimensionMismatch("Dimension of X and R mismatch."))
     # allocate memory for temporary matrices
     Xo = copy(X)
-    cov = zeros(T, n, n)
+    covmat = zeros(T, n, n)
 
     # allocate memory for llh
     llh = Vector{T}(undef, maxiter)
@@ -46,7 +46,7 @@ function EM!(
         @debug "w" w
         @debug "μ" μ
         @debug "Σ" Σ
-        llh[iter] = E!(R, X, w, μ, Σ, Xo, cov)
+        llh[iter] = E!(R, X, w, μ, Σ, Xo, covmat)
         # M-step
         M!(w, μ, Σ, R, X, Xo)
         incr = (llh[iter] - llh[iter-1]) / llh[iter-1]
@@ -61,12 +61,12 @@ end
 function E!(
     R::AbstractArray{T}, X::AbstractArray{T}, w::AbstractArray{T},
     μ::AbstractArray{T}, Σ::AbstractVector{A} where A <: AbstractArray{T},
-    Xo::AbstractArray{T}, cov::AbstractArray{T}
+    Xo::AbstractArray{T}, covmat::AbstractArray{T}
 ) where T <: Real
     n, K = size(R)
     @inbounds for k ∈ 1:K
         expectation!(
-            view(R, :, k), X, Xo, cov,
+            view(R, :, k), X, Xo, covmat,
             view(μ, :, k), Σ[k]
         )
     end
@@ -84,7 +84,7 @@ function expectation!(
     Rk::AbstractVector{T},
     X::AbstractArray{T},
     Xo::AbstractArray{T},
-    cov::AbstractMatrix{T},
+    covmat::AbstractMatrix{T},
     μ::AbstractVector{T},
     Σ::AbstractMatrix{T}
 ) where T <: Real
@@ -94,9 +94,9 @@ function expectation!(
     #@debug "X Xo" X sum(Xo, dims=1)
     C = cholesky!(Hermitian(Σ))
     fill!(Rk, -logdet(C) / 2 - log(2π) * d / 2)
-    mul!(cov, Xo, C \ transpose(Xo))
-    @debug "cov" diag(cov)
-    Rk .-= diag(cov) ./ 2
+    mul!(covmat, Xo, C \ transpose(Xo))
+    @debug "covmat" diag(covmat)
+    Rk .-= diag(covmat) ./ 2
 end
 
 function M!(
