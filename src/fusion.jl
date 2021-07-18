@@ -59,7 +59,7 @@ function EM!(
 
     @showprogress 0.1 "EM..." for iter ∈ 1:maxiter 
         # E-step
-        llh[iter] = E!(R, XH, XL, w, μH, μL, ΣH, ΣL, XHo, XLo, covH, covL)
+        llh[iter] = E!(R, XH, XL, w, μH, μL, ΣH, ΣL, XHo, XLo, covH, cov, U)
         # M-step
 
     end
@@ -75,13 +75,15 @@ function E!(
     ΣH::AbstractVector{A} where A <: Cholesky{T, Matrix{T}},
     ΣL::AbstractVector{A} where A <: Cholesky{T, Matrix{T}},
     XHo::AbstractArray{T}, XLo::AbstractArray{T}, 
-    covH::AbstractArray{T}, covL::AbstractArray{T}
+    covH::AbstractArray{T}, covL::AbstractArray{T},
+    U::AbstractVector{B} where B <: AbstractArray{T}
 ) where T <: Real
     n, K = size(RH)
     @inbounds for k ∈ 1:K
         expectation!(
             view(R, :, k), XH, XL, XHo, XLo, covH, covL,
-            view(μH, :, k), view(μL, :, k), ΣH[k], ΣL[k]
+            view(μH, :, k), view(μL, :, k), ΣH[k], ΣL[k],
+            U[k]
         )
     end
     @debug "R" R
@@ -100,14 +102,15 @@ function expectation!(
     XHo::AbstractArray{T}, XLo::AbstractArray{T},
     covH::AbstractMatrix{T}, covL::AbstractMatrix{T},
     μH::AbstractVector{T}, μL::AbstractVector{T},
-    CH::Cholesky{T, Matrix{T}}, CL::Cholesky{T, Matrix{T}}
+    CH::Cholesky{T, Matrix{T}}, CL::Cholesky{T, Matrix{T}},
+    U::AbstractArray{T}
 ) where T <: Real
     n, d = size(XL)
     # centralise data
     copyto!(XLo, XL)
     XLo .-= μL'
-    copyto!(XHo, XH)
-    XHo .-= μH'
+    copyto!(XHo, XH * U')
+    XHo .-= μL'
     #@debug "X Xo" X sum(Xo, dims=1)
     #CL, CH = map(x -> cholesky!(Hermitian(x)), [ΣL, ΣH])
     fill!(Rk, -logdet(CL) / 2 - log(2π) * d - logdet(CH) / 2)
@@ -118,7 +121,8 @@ function expectation!(
 end
 
 function M!(
-    w::AbstractMatrix{T}, μH::AbstractMatrix{T}, μL::AbstractMatrix{T}, U::AbstractMatrix{T},
+    w::AbstractMatrix{T}, μH::AbstractMatrix{T}, μL::AbstractMatrix{T}, 
+    U::AbstractVector{B} where B <: AbstractArray{T},
     ΣH::AbstractVector{A} where A <: Cholesky{T, Matrix{T}}, 
     ΣL::AbstractVector{A} where A <: Cholesky{T, Matrix{T}}, 
     R::AbstractArray{T}, XH::AbstractArray{T}, XL::AbstractArray{T},
@@ -127,32 +131,86 @@ function M!(
     n, K = size(R)
     # udpate parameters
     w .= sum(R, dims=1)[:] # remember to div by n
-    # update μH
-    for k ∈ 1:K
-        μk = view(μH, :, k)
-        Rk = view(Rk, :, k)
+    # update μL
+    updateμL!(μL, R, XH, XHo, XL, XLo, w, ΣH, ΣL, U, K)
+    # update U
+    updateU!(U, XH, XHo, R, μL)
+    # update ΣH, ΣL
+    updateΣ!(ΣH, ΣL, XH, XHo, XL, XLo, w, μL, R, K)
+    w ./= n
+end
+
+function updateμL!(
+    μL::AbstractArray{T}, R::AbstractArray{T}, XH::AbstractArray{T}, XHo::AbstractArray{T},
+    XL::AbstractArray{T}, XLo::AbstractArray{T}, w::AbstractArray{T},
+    ΣH::AbstractVector{A} where A <: Cholesky{T, Matrix{T}}, 
+    ΣL::AbstractVector{A} where A <: Cholesky{T, Matrix{T}}, 
+    U::AbstractVector{B} where B <: AbstractArray{T},
+    K::Int=size(R, 2)
+) where T <: Real
+    # update μL
+    @inbounds for k ∈ 1:K
+        μk = view(μL, :, k)
+        Rk = view(R, :, k)
         #CL, CH = map(x -> cholesky!(Hermitian(x)), [ΣL[k], ΣH[k]])
-        copyto!(XHo, XH)
+        copyto!(XHo, XH * U[k]')
         copyto!(XLo, XL)
         rdiv!(XHo, ΣH[k])
         rdiv!(XLo, ΣL[k])
-        mul!(μk, transpose(XHo + XLo * U), Rk)
-        ldiv!(cholesky!(LinearAlgebra.inv!(ΣH[k]) + U' * (ΣL[k] \ U)), μk)
+        mul!(μk, transpose(XHo + XLo), Rk)
+        ldiv!(cholesky!(LinearAlgebra.inv!(ΣH[k]) + LinearAlgebra.inv!(ΣL[k])), μk)
         μk ./= w[1, k]
     end
-    # update U, μH
-    mul!(μL, transpose(XL), R)
-    μL ./= w
-    u, _, v = svd!(μL * μH')
-    mul!(U, u, v')
-    #U = u * v'
-    #u, s, v = svd!(μH * μH' * μH * R' * XL ./ n)
-    #copyto!(U, v * u')
-    #mul!(μL, U', μH)
-    # update ΣH, ΣL
-    for k ∈ 1:K
+end
+
+function updateU!(
+    U::AbstractVector{A} where A <: AbstractArray{T},
+    XH::AbstractArray{T}, XHo::AbstractArray{T},
+    R::AbstractArray{T}, μL::AbstractArray{T}, K::Int=size(R, 2)
+) where T <: Real
+    @inbounds for k ∈ 1:K
+        Rk = view(R, :, k)
         copyto!(XHo, XH)
-        XoH .-= @view μH[:, k]
+        lmul!(Diagonal(sqrt.(Rk)), XHo)
+        C = cholesky!(transpose(XHo) * XHo)
+        mul!(U[k], view(μL, :, k), Rk' * XH)
+        rdiv!(U[k], C)
+        # orthogonalise?
+        #u, _, v = svd!(view(μL, :, k) * Rk' * XH * transpose(XHo) * XHo)
+        #mul!(U[k], u, v')
+    end
+end
+
+function updateU!(
+    U::AbstractArray{T},
+    XH::AbstractArray{T}, XHo::AbstractArray{T},
+    R::AbstractArray{T}, μL::AbstractArray{T}, K::Int=size(R, 2)
+) where T <: Real
+    fill!(U, 0)
+    @inbounds for k ∈ 1:K
+        Rk = view(R, :, k)
+        copyto!(XHo, XH)
+        lmul!(Diagonal(sqrt.(Rk)), XHo)
+        U .+= transpose(XHo) * XHo
+    end
+    C = cholesky!(copy(U))
+    mul!(U, μL * transpose(R), XH)
+    rdiv!(U, C)
+    # or orthogonal
+    u, _, v = svd!(μL * transpose(R) * XH * U)
+    mul!(U, u, v')
+end
+
+function updateΣ!(
+    ΣH::AbstractVector{A} where A <: Cholesky{T, Matrix{T}}, 
+    ΣL::AbstractVector{A} where A <: Cholesky{T, Matrix{T}}, 
+    XH::AbstractArray{T}, XHo::AbstractArray{T},
+    XL::AbstractArray{T}, XLo::AbstractArray{T}, 
+    w::AbstractArray{T}, μL::AbstractArray{T}, R::AbstractArray{T}, K::Int=size(R, 2)
+) where T <: Real
+    @inbounds for k ∈ 1:K
+        copyto!(XHo, XH * U')
+        XoH .-= @view μL[:, k]
         copyto!(XLo, XL)
         XoL .-= @view μL[:, k]
         map([XoH, XoL]) do x
@@ -164,15 +222,4 @@ function M!(
         #update!(ΣH[k], XoH, w[1, k])
         #update!(ΣL[k], XoL, w[1, k])
     end
-    w ./= n
-end
-
-function update!(
-    Σ::AbstractArray{T},
-    Xo::AbstractArray{T},
-    w::T
-) where T <: Real
-    mul!(Σ, Xo', Xo)
-    Σ ./= w
-    Σ += I * 1f-8
 end
