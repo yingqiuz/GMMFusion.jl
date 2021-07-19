@@ -32,7 +32,18 @@ function EM(
     U = u * v'
     @debug "U" U
 
-    EM!(R, XH, XL, w, μH, μL, ΣH, ΣL, U; tol=tol, maxiter=maxiter)
+    XHo = copy(XH)
+    XLo = copy(XL)
+
+    updateU!(U, XH, XHo, R, μL, K)
+    # update ΣH, ΣL
+    updateΣ!(ΣH, ΣL, XH, XHo, XL, XLo, w .* n, μL, U, R, K)
+    @debug "U" U
+    @debug "w" w
+    @debug "μL" μL
+    @debug "ΣL" ΣL
+    @debug "ΣH" ΣH
+    EM!(R, XH, XL, w, μL, ΣH, ΣL, U; tol=tol, maxiter=maxiter)
 end
 
 """
@@ -40,7 +51,7 @@ main algorithm
 """
 function EM!(
     R::AbstractArray{T}, XH::AbstractArray{T}, XL::AbstractArray{T},
-    w::AbstractMatrix{T}, μH::AbstractMatrix{T}, μL::AbstractMatrix{T}, 
+    w::AbstractMatrix{T}, μL::AbstractMatrix{T}, 
     ΣH::AbstractVector{A} where A <: Cholesky{T, Matrix{T}}, 
     ΣL::AbstractVector{A} where A <: Cholesky{T, Matrix{T}}, 
     U::AbstractMatrix{T}; tol::T=convert(T, 1e-6), maxiter::Int=10000
@@ -57,11 +68,23 @@ function EM!(
     XLo = copy(XL)
     covH, covL = [zeros(T, n, n) for _ ∈ 1:2]
 
-    @showprogress 0.1 "EM..." for iter ∈ 1:maxiter 
+    @showprogress 0.1 "EM..." for iter ∈ 2:maxiter 
         # E-step
-        llh[iter] = E!(R, XH, XL, w, μH, μL, ΣH, ΣL, XHo, XLo, covH, cov, U)
+        llh[iter] = E!(R, XH, XL, w, μL, ΣH, ΣL, XHo, XLo, covH, covL, U)
+        @debug "llh" llh[iter]
         # M-step
-
+        M!(w, μL, U, ΣH, ΣL, R, XH, XL, XHo, XLo)
+        incr = (llh[iter] - llh[iter-1]) / llh[iter-1]
+        @debug "U" U
+        @debug "w" w
+        @debug "μL" μL
+        @debug "ΣL" ΣL
+        @debug "ΣH" ΣH
+        @info "iteration $(iter-1), incr" incr
+        if abs(incr) < tol || iter == maxiter
+            iter != maxiter || @warn "Not converged after $(maxiter) steps"
+            return R
+        end
     end
 
 end
@@ -71,28 +94,24 @@ E step
 """
 function E!(
     R::AbstractArray{T}, XH::AbstractArray{T}, XL::AbstractArray{T}, 
-    w::AbstractArray{T}, μH::AbstractArray{T}, μL::AbstractArray{T}, 
+    w::AbstractArray{T}, μL::AbstractArray{T}, 
     ΣH::AbstractVector{A} where A <: Cholesky{T, Matrix{T}},
     ΣL::AbstractVector{A} where A <: Cholesky{T, Matrix{T}},
     XHo::AbstractArray{T}, XLo::AbstractArray{T}, 
     covH::AbstractArray{T}, covL::AbstractArray{T},
-    U::AbstractVector{B} where B <: AbstractArray{T}
+    U::AbstractArray{T}
 ) where T <: Real
-    n, K = size(RH)
+    n, K = size(R)
     @inbounds for k ∈ 1:K
         expectation!(
             view(R, :, k), XH, XL, XHo, XLo, covH, covL,
-            view(μH, :, k), view(μL, :, k), ΣH[k], ΣL[k],
-            U[k]
+            view(μL, :, k), ΣH[k], ΣL[k], U
         )
     end
-    @debug "R" R
     R .+= log.(w)
-    @debug "R" R
     llh = logsumexp(R, dims=2)
     R .-= llh
     R .= exp.(R)
-    @debug "R" R
     return sum(llh) / n
 end
 
@@ -101,7 +120,7 @@ function expectation!(
     XH::AbstractArray{T}, XL::AbstractArray{T},
     XHo::AbstractArray{T}, XLo::AbstractArray{T},
     covH::AbstractMatrix{T}, covL::AbstractMatrix{T},
-    μH::AbstractVector{T}, μL::AbstractVector{T},
+    μL::AbstractVector{T},
     CH::Cholesky{T, Matrix{T}}, CL::Cholesky{T, Matrix{T}},
     U::AbstractArray{T}
 ) where T <: Real
@@ -121,8 +140,7 @@ function expectation!(
 end
 
 function M!(
-    w::AbstractMatrix{T}, μH::AbstractMatrix{T}, μL::AbstractMatrix{T}, 
-    U::AbstractVector{B} where B <: AbstractArray{T},
+    w::AbstractMatrix{T}, μL::AbstractMatrix{T}, U::AbstractArray{T},
     ΣH::AbstractVector{A} where A <: Cholesky{T, Matrix{T}}, 
     ΣL::AbstractVector{A} where A <: Cholesky{T, Matrix{T}}, 
     R::AbstractArray{T}, XH::AbstractArray{T}, XL::AbstractArray{T},
@@ -130,30 +148,29 @@ function M!(
 ) where T <: Real
     n, K = size(R)
     # udpate parameters
-    w .= sum(R, dims=1)[:] # remember to div by n
+    w .= sum(R, dims=1) # remember to div by n
     # update μL
-    updateμL!(μL, R, XH, XHo, XL, XLo, w, ΣH, ΣL, U, K)
+    updateμ!(μL, R, XH, XHo, XL, XLo, w, ΣH, ΣL, U, K)
     # update U
-    updateU!(U, XH, XHo, R, μL)
+    updateU!(U, XH, XHo, R, μL, K)
     # update ΣH, ΣL
-    updateΣ!(ΣH, ΣL, XH, XHo, XL, XLo, w, μL, R, K)
+    updateΣ!(ΣH, ΣL, XH, XHo, XL, XLo, w, μL, U, R, K)
     w ./= n
 end
 
-function updateμL!(
+function updateμ!(
     μL::AbstractArray{T}, R::AbstractArray{T}, XH::AbstractArray{T}, XHo::AbstractArray{T},
     XL::AbstractArray{T}, XLo::AbstractArray{T}, w::AbstractArray{T},
     ΣH::AbstractVector{A} where A <: Cholesky{T, Matrix{T}}, 
     ΣL::AbstractVector{A} where A <: Cholesky{T, Matrix{T}}, 
-    U::AbstractVector{B} where B <: AbstractArray{T},
-    K::Int=size(R, 2)
+    U::AbstractArray{T}, K::Int=size(R, 2)
 ) where T <: Real
     # update μL
     @inbounds for k ∈ 1:K
         μk = view(μL, :, k)
         Rk = view(R, :, k)
         #CL, CH = map(x -> cholesky!(Hermitian(x)), [ΣL[k], ΣH[k]])
-        copyto!(XHo, XH * U[k]')
+        copyto!(XHo, XH * U')
         copyto!(XLo, XL)
         rdiv!(XHo, ΣH[k])
         rdiv!(XLo, ΣL[k])
@@ -193,9 +210,9 @@ function updateU!(
         lmul!(Diagonal(sqrt.(Rk)), XHo)
         U .+= transpose(XHo) * XHo
     end
-    C = cholesky!(copy(U))
-    mul!(U, μL * transpose(R), XH)
-    rdiv!(U, C)
+    #C = cholesky!(U)
+    #mul!(U, μL * transpose(R), XH)
+    #rdiv!(U, C)
     # or orthogonal
     u, _, v = svd!(μL * transpose(R) * XH * U)
     mul!(U, u, v')
@@ -206,14 +223,16 @@ function updateΣ!(
     ΣL::AbstractVector{A} where A <: Cholesky{T, Matrix{T}}, 
     XH::AbstractArray{T}, XHo::AbstractArray{T},
     XL::AbstractArray{T}, XLo::AbstractArray{T}, 
-    w::AbstractArray{T}, μL::AbstractArray{T}, R::AbstractArray{T}, K::Int=size(R, 2)
+    w::AbstractArray{T}, μL::AbstractArray{T}, U::AbstractArray{T},
+    R::AbstractArray{T}, K::Int=size(R, 2)
 ) where T <: Real
     @inbounds for k ∈ 1:K
+        μk = @view μL[:, k]
         copyto!(XHo, XH * U')
-        XoH .-= @view μL[:, k]
+        XHo .-= μk'
         copyto!(XLo, XL)
-        XoL .-= @view μL[:, k]
-        map([XoH, XoL]) do x
+        XLo .-= μk'
+        map([XHo, XLo]) do x
             x .*= sqrt.(view(R, :, k))
         end
         #Xo .*= sqrt.(view(R, :, k))
