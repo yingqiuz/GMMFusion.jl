@@ -9,25 +9,31 @@ struct GMM
 end
 
 function EM(
-    X::AbstractArray{T}, K::Int;
+    X::AbstractArray{T}, Xtest::AbstractArray{T}, K::Int;
     init::Union{Symbol, SeedingAlgorithm, AbstractVector{<:Integer}}=:kmpp,
     tol::T=convert(T, 1e-6), maxiter::Int=1000
 ) where T <: Real
     n, d = size(X)
     # init 
     R = kmeans(X', K; init=init, tol=tol, maxiter=maxiter)
-    w = reshape(counts(R) ./ n, 1, K)  # cluster size
+    w = convert(Array{T}, reshape(counts(R) ./ n, 1, K))  # cluster size
     μ = copy(R.centers)
-    Σ = [cov(X) for k ∈ 1:K]
+    Σ = [cholesky!(cov(X)) for k ∈ 1:K]
     R = [x == k ? 1 : 0 for x ∈ assignments(R), k ∈ 1:K]
     #model = GMM(d, K, ones(T, K) ./ K, μ, Σ)
-    EM!(convert(Array{T}, R), copy(X), convert(Array{T}, w), μ, Σ; 
+    EM!(convert(Array{T}, R), copy(X), w, μ, Σ; 
         tol=tol, maxiter=maxiter)
+    ntest = size(Xtest, 1)
+    Rtest = zeros(T, ntest, K)
+    covmat = zeros(T, ntest, ntest)
+    Xo = copy(Xtest)
+    E!(Rtest, Xtest, w, μ, Σ, Xo, covmat)
+    return Rtest
 end
 
 function EM!(
     R::AbstractArray{T}, X::AbstractArray{T}, w::AbstractArray{T}, 
-    μ::AbstractMatrix{T}, Σ::AbstractVector{A} where A <: AbstractArray{T};
+    μ::AbstractMatrix{T}, Σ::AbstractVector{A} where A <: Cholesky{T, Matrix{T}};
     tol::T=convert(T, 1e-6), maxiter::Int=1000
 ) where T <: Real
     n, d = size(X)
@@ -60,7 +66,7 @@ end
 
 function E!(
     R::AbstractArray{T}, X::AbstractArray{T}, w::AbstractArray{T},
-    μ::AbstractArray{T}, Σ::AbstractVector{A} where A <: AbstractArray{T},
+    μ::AbstractArray{T}, Σ::AbstractVector{A} where A <: Cholesky{T, Matrix{T}},
     Xo::AbstractArray{T}, covmat::AbstractArray{T}
 ) where T <: Real
     n, K = size(R)
@@ -86,13 +92,13 @@ function expectation!(
     Xo::AbstractArray{T},
     covmat::AbstractMatrix{T},
     μ::AbstractVector{T},
-    Σ::AbstractMatrix{T}
+    C::Cholesky{T, Matrix{T}}
 ) where T <: Real
     n, d = size(X)
     copyto!(Xo, X)
     Xo .-= μ'
     #@debug "X Xo" X sum(Xo, dims=1)
-    C = cholesky!(Hermitian(Σ))
+    #C = cholesky!(Hermitian(Σ))
     fill!(Rk, -logdet(C) / 2 - log(2π) * d / 2)
     mul!(covmat, Xo, C \ transpose(Xo))
     @debug "covmat" diag(covmat)
@@ -100,7 +106,7 @@ function expectation!(
 end
 
 function M!(
-    w::AbstractArray{T}, μ::AbstractMatrix{T}, Σ::AbstractVector{A} where A <: AbstractArray{T}, 
+    w::AbstractArray{T}, μ::AbstractMatrix{T}, Σ::AbstractVector{A} where A <: Cholesky{T, Matrix{T}}, 
     R::AbstractMatrix{T}, X::AbstractMatrix{T}, Xo::AbstractMatrix{T}
 ) where T <: Real
     n, K = size(R)
@@ -111,13 +117,10 @@ function M!(
     μ ./= w
     # update Σ
     @inbounds for k ∈ 1:K
-        fill!(Σ[k], 0)
         copy!(Xo, X)
         Xo .-= transpose(view(μ, :, k))
         Xo .*= sqrt.(view(R, :, k))
-        mul!(Σ[k], Xo', Xo)
-        Σ[k] ./= w[1, k]
-        Σ[k] += I * 1f-8
+        Σ[k] = cholesky!(Xo' * Xo ./ w[1, k] + I * 1f-8)
     end
     w ./= n
 end

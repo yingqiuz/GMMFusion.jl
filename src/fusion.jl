@@ -2,7 +2,7 @@
 interface
 """
 function EM(
-    XH::AbstractArray{T}, XL::AbstractArray{T}, K::Int;
+    XH::AbstractArray{T}, XL::AbstractArray{T}, XLtest::AbstractArray{T}, K::Int;
     init::Union{Symbol, SeedingAlgorithm, AbstractVector{<:Integer}}=:kmpp,
     tol::T=convert(T, 1e-6), maxiter::Int=1000
 ) where T <: Real
@@ -44,6 +44,12 @@ function EM(
     @debug "ΣL" ΣL
     @debug "ΣH" ΣH
     EM!(R, XH, XL, w, μL, ΣH, ΣL, U; tol=tol, maxiter=maxiter)
+    ntest = size(XLtest, 1)
+    Rtest = zeros(T, ntest, K)
+    covmat = zeros(T, ntest, ntest)
+    Xo = copy(XLtest)
+    E!(Rtest, XLtest, w, μL, ΣL, Xo, covmat)
+    return Rtest
 end
 
 """
