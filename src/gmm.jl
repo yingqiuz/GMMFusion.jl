@@ -124,3 +124,24 @@ function M!(
     end
     w ./= n
 end
+
+function EM(
+    R::KmeansResult{Matrix{T}, T, Int}, X::AbstractArray{T}, Xtest::AbstractArray{T}, K::Int;
+    tol::T=convert(T, 1e-6), maxiter::Int=1000
+) where T <: Real
+    n, d = size(X)
+    # init
+    w = convert(Array{T}, reshape(counts(R) ./ n, 1, K))  # cluster size
+    μ = copy(R.centers)
+    Σ = [cholesky!(cov(X)) for k ∈ 1:K]
+    R = [x == k ? 1 : 0 for x ∈ assignments(R), k ∈ 1:K]
+    #model = GMM(d, K, ones(T, K) ./ K, μ, Σ)
+    EM!(convert(Array{T}, R), copy(X), w, μ, Σ; 
+        tol=tol, maxiter=maxiter)
+    ntest = size(Xtest, 1)
+    Rtest = zeros(T, ntest, K)
+    covmat = zeros(T, ntest, ntest)
+    Xo = copy(Xtest)
+    E!(Rtest, Xtest, w, μ, Σ, Xo, covmat)
+    return Rtest
+end
