@@ -131,10 +131,16 @@ function EM(
 ) where T <: Real
     n, d = size(X)
     # init
-    w = convert(Array{T}, reshape(counts(R) ./ n, 1, K))  # cluster size
-    μ = copy(R.centers)
+    a = assignments(R)
+    μ = Matrix{T}(undef, d, K)
+    for k ∈ 1:K
+        μ[:, k] .= mean(X[findall(x -> x == k, a), :], dims=1)[:]
+    end
     Σ = [cholesky!(cov(X)) for k ∈ 1:K]
-    R = [x == k ? 1 : 0 for x ∈ assignments(R), k ∈ 1:K]
+    w = convert(Array{T}, reshape(counts(R) ./ n, 1, K))  # cluster size
+    R = [x == k ? 1 : 0 for x ∈ a, k ∈ 1:K]
+    
+
     #model = GMM(d, K, ones(T, K) ./ K, μ, Σ)
     EM!(convert(Array{T}, R), copy(X), w, μ, Σ; 
         tol=tol, maxiter=maxiter)
