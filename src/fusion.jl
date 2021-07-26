@@ -65,7 +65,7 @@ function EM!(
         @debug "llh" llh[iter]
         # M-step
         M!(w, μH, ΣH, R, XH, XHo)
-        M!(μL, ΣL, R, XL, XLo)
+        M!(μL, ΣL, R, XL, XLo, w)
         #M!(w, μL, U, ΣH, ΣL, R, XH, XL, XHo, XLo)
         incr = (llh[iter] - llh[iter-1]) / llh[iter-1]
         @debug "U" U
@@ -84,7 +84,8 @@ end
 
 function M!(
     μ::AbstractMatrix{T}, Σ::AbstractVector{A} where A <: Cholesky{T, Matrix{T}}, 
-    R::AbstractMatrix{T}, X::AbstractMatrix{T}, Xo::AbstractMatrix{T}
+    R::AbstractMatrix{T}, X::AbstractMatrix{T}, Xo::AbstractMatrix{T},
+    w::AbstractMatrix{T}
 ) where T <: Real
     n, K = size(R)
     # udpate parameters
