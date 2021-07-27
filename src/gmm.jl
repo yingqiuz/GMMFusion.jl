@@ -1,4 +1,4 @@
-using Base: Real, sign_mask, nothing_sentinel
+using Base: Real
 struct GMM
     K::Int                         # number of Gaussians
     d::Int                         # dimension of Gaussian
@@ -12,26 +12,20 @@ end
 interface normal version
 """
 function EM(
-    X::AbstractArray{T}, Xtest::AbstractArray{T}, K::Int;
+    X::AbstractArray{T}, K::Int;
     init::Union{AbstractArray{T}, Nothing}=nothing,
     tol::T=convert(T, 1e-6), maxiter::Int=10000
 ) where T <: Real
     n, d = size(X)
     # init 
     R = kmeans(X', K; init=init, tol=tol, max_iters=maxiter)
-    w = convert(Array{T}, reshape(counts(R) ./ n, 1, K))  # cluster size
+    w = convert(Array{T}, reshape(counts(R.assignments) ./ n, 1, K))  # cluster size
     μ = copy(R.centers)
     Σ = [cholesky!(cov(X)) for k ∈ 1:K]
-    R = [x == k ? 1 : 0 for x ∈ assignments(R), k ∈ 1:K]
+    R = [x == k ? 1 : 0 for x ∈ R.assignments, k ∈ 1:K]
     #model = GMM(d, K, ones(T, K) ./ K, μ, Σ)
     EM!(convert(Array{T}, R), copy(X), w, μ, Σ; 
         tol=tol, maxiter=maxiter)
-    ntest = size(Xtest, 1)
-    Rtest = zeros(T, ntest, K)
-    covmat = zeros(T, ntest, ntest)
-    Xo = copy(Xtest)
-    E!(Rtest, Xtest, w, μ, Σ, Xo, covmat)
-    return Rtest
 end
 
 function EM!(
@@ -44,7 +38,7 @@ function EM!(
     n == n2 || throw(DimensionMismatch("Dimension of X and R mismatch."))
     # allocate memory for temporary matrices
     Xo = copy(X)
-    covmat = zeros(T, n, n)
+    #covmat = zeros(T, n, n)
 
     # allocate memory for llh
     llh = Vector{T}(undef, maxiter)
@@ -56,7 +50,7 @@ function EM!(
         @debug "w" w
         @debug "μ" μ
         @debug "Σ" Σ
-        llh[iter] = E!(R, X, w, μ, Σ, Xo, covmat)
+        llh[iter] = E!(R, X, w, μ, Σ, Xo)
         # M-step
         M!(w, μ, Σ, R, X, Xo)
         incr = (llh[iter] - llh[iter-1]) / llh[iter-1]
@@ -66,47 +60,6 @@ function EM!(
             return R
         end
     end
-end
-
-function E!(
-    R::AbstractArray{T}, X::AbstractArray{T}, w::AbstractArray{T},
-    μ::AbstractArray{T}, Σ::AbstractVector{A} where A <: Cholesky{T, Matrix{T}},
-    Xo::AbstractArray{T}, covmat::AbstractArray{T}=zeros(T, size(R, 1), size(R, 1))
-) where T <: Real
-    n, K = size(R)
-    @inbounds for k ∈ 1:K
-        expectation!(
-            view(R, :, k), X, Xo, covmat,
-            view(μ, :, k), Σ[k]
-        )
-    end
-    @debug "R" R
-    R .+= log.(w)
-    @debug "R" R
-    llh = logsumexp(R, dims=2)
-    R .-= llh
-    R .= exp.(R)
-    @debug "R" R
-    return sum(llh) / n
-end
-
-function expectation!(
-    Rk::AbstractVector{T},
-    X::AbstractArray{T},
-    Xo::AbstractArray{T},
-    covmat::AbstractMatrix{T},
-    μ::AbstractVector{T},
-    C::Cholesky{T, Matrix{T}}
-) where T <: Real
-    n, d = size(X)
-    copyto!(Xo, X)
-    Xo .-= μ'
-    #@debug "X Xo" X sum(Xo, dims=1)
-    #C = cholesky!(Hermitian(Σ))
-    fill!(Rk, -logdet(C) / 2 - log(2π) * d / 2)
-    mul!(covmat, Xo, C \ transpose(Xo))
-    @debug "covmat" diag(covmat)
-    Rk .-= diag(covmat) ./ 2
 end
 
 function M!(
@@ -120,11 +73,12 @@ function M!(
     mul!(μ, transpose(X), R)
     μ ./= w
     # update Σ
-    @inbounds for k ∈ 1:K
-        copy!(Xo, X)
-        Xo .-= transpose(view(μ, :, k))
-        Xo .*= sqrt.(view(R, :, k))
-        Σ[k] = cholesky!(Xo' * Xo ./ w[1, k] + I * 1f-8)
+    Threads.@threads for k ∈ 1:K
+        #copy!(Xo, X)
+        Xtmp = deepcopy(X)
+        Xtmp .-= transpose(view(μ, :, k))
+        Xtmp .*= sqrt.(view(R, :, k))
+        Σ[k] = cholesky!(Xtmp' * Xtmp ./ w[1, k] + I * 1f-8)
     end
     w ./= n
 end
@@ -231,7 +185,7 @@ function E!(
 ) where T <: Real
     n, K = size(R)
     @debug "μ" μ
-    @inbounds for k ∈ 1:K
+    Threads.@threads for k ∈ 1:K
         expectation!(
             view(R, :, k), X, Xo, view(μ, :, k), Σ[k]
         )
@@ -252,7 +206,8 @@ function expectation!(
     C::Cholesky{T, Matrix{T}}
 ) where T <: Real
     n, d = size(X)
-    copyto!(Xo, X)
+    #copyto!(Xo, X)
+    Xo = deepcopy(X)
     Xo .-= μ'
     #@debug "X Xo" X sum(Xo, dims=1)
     #C = cholesky!(Hermitian(Σ))
