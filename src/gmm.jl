@@ -137,18 +137,24 @@ function EM(
     init::Union{AbstractArray{T, 2}, Nothing}=nothing,
     tol::T=convert(T, 1e-6), maxiter::Int=10000
 ) where T <: Real
-    n = sum([size(x, 1) for x ∈ X])
+    nlist = [size(x, 1) for x ∈ X]
+    n = sum(nlist)
     d = size(X[1], 2)
-    R = [kmeans(transpose(x), K; k_init=init, tol=tol, max_iters=1000) for x ∈ X]
+    R = kmeans(Elkan(), vcat(X...)', K; k_init=init, tol=tol, max_iters=1000)
     @debug "R" R
-    μ = mean([sort!(r.centers, dims=1) for r ∈ R])
+    μ = deepcopy(R.centers)
     @debug "μ" μ
     # recalculate assignment
-    w = mapreduce(r -> counts(r.assignments), +, R)
+    #w = mapreduce(r -> counts(r.assignments), +, R)
+    w = convert(Array{T}, reshape(counts(R.assignments) ./ n, 1, K))
     @debug "w" w
-    w = convert(Array{T}, reshape(w ./ n, 1, K))
-    R = [convert(Array{T}, [x == k ? 1 : 0 for x ∈ r.assignments, k ∈ 1:K]) 
-        for r ∈ R]
+    R = [convert(
+            Array{T}, 
+            [
+                x == k ? 1 : 0 
+                for x ∈ R.assignments[sum(nlist[1:i]) - ntmp + 1:sum(nlist[1:i])], k ∈ 1:K
+            ]
+        ) for (i, ntmp) ∈ enumerate(nlist)]
     @debug "R" R
     C = [cholesky!(I + zeros(T, d, d)) for k ∈ 1:K]
     Σ = [I + zeros(T, d, d) for k ∈ 1:K]
