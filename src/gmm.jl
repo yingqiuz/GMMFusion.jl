@@ -141,11 +141,12 @@ function EM(
     d = size(X[1], 2)
     R = [kmeans(transpose(x), K; k_init=init, tol=tol, max_iters=1000) for x ∈ X]
     @debug "R" R
+    μ = mean([sort!(r.centers, dims=1) for r ∈ R])
+    @debug "μ" μ
+    # recalculate assignment
     w = mapreduce(r -> counts(r.assignments), +, R)
     @debug "w" w
     w = convert(Array{T}, reshape(w ./ n, 1, K))
-    μ = mean([r.centers for r ∈ R])
-    @debug "μ" μ
     R = [convert(Array{T}, [x == k ? 1 : 0 for x ∈ r.assignments, k ∈ 1:K]) 
         for r ∈ R]
     @debug "R" R
