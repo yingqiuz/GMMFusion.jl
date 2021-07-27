@@ -3,13 +3,13 @@ interface
 """
 function EM(
     XH::AbstractArray{T}, XL::AbstractArray{T}, XLtest::AbstractArray{T}, K::Int;
-    init::Union{Symbol, SeedingAlgorithm, AbstractVector{<:Integer}}=:kmpp,
+    init::Union{Nothing, AbstractArray{T}}=nothing,
     tol::T=convert(T, 1e-6), maxiter::Int=10000
 ) where T <: Real
     n, d = size(XH)
     n == size(XL, 1) || throw(DimensionMismatch("Size of XH and XL mismatch."))
     # init - high quality
-    RH = kmeans(XH', K; init=init, tol=tol, maxiter=maxiter)
+    RH = kmeans(XH', K; init=init, tol=tol, max_iters=maxiter)
     a = assignments(RH)
     w = convert(Array{T}, reshape(counts(RH) ./ n, 1, K))  # cluster size
     μH = copy(RH.centers)

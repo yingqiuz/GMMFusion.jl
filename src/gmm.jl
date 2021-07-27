@@ -1,6 +1,6 @@
-using Base: Real
+using Base: Real, sign_mask, nothing_sentinel
 struct GMM
-    n::Int                         # number of Gaussians
+    K::Int                         # number of Gaussians
     d::Int                         # dimension of Gaussian
     w::AbstractVector                      # weights: n
     μ::AbstractArray                       # means: n x d
@@ -8,14 +8,17 @@ struct GMM
     #hist::Array{History}           # history of this GMM
 end
 
+"""
+interface normal version
+"""
 function EM(
     X::AbstractArray{T}, Xtest::AbstractArray{T}, K::Int;
-    init::Union{Symbol, SeedingAlgorithm, AbstractVector{<:Integer}}=:kmpp,
-    tol::T=convert(T, 1e-6), maxiter::Int=1000
+    init::Union{AbstractArray{T}, Nothing}=nothing,
+    tol::T=convert(T, 1e-6), maxiter::Int=10000
 ) where T <: Real
     n, d = size(X)
     # init 
-    R = kmeans(X', K; init=init, tol=tol, maxiter=maxiter)
+    R = kmeans(X', K; init=init, tol=tol, max_iters=maxiter)
     w = convert(Array{T}, reshape(counts(R) ./ n, 1, K))  # cluster size
     μ = copy(R.centers)
     Σ = [cholesky!(cov(X)) for k ∈ 1:K]
@@ -46,6 +49,7 @@ function EM!(
     # allocate memory for llh
     llh = Vector{T}(undef, maxiter)
     fill!(llh, -Inf32)
+    prog = ProgressMeter.ProgressUnknown()
     @showprogress 0.1 "EM for gmm..." for iter ∈ 2:maxiter
         # E-step
         @debug "R" R
@@ -67,7 +71,7 @@ end
 function E!(
     R::AbstractArray{T}, X::AbstractArray{T}, w::AbstractArray{T},
     μ::AbstractArray{T}, Σ::AbstractVector{A} where A <: Cholesky{T, Matrix{T}},
-    Xo::AbstractArray{T}, covmat::AbstractArray{T}
+    Xo::AbstractArray{T}, covmat::AbstractArray{T}=zeros(T, size(R, 1), size(R, 1))
 ) where T <: Real
     n, K = size(R)
     @inbounds for k ∈ 1:K
@@ -125,29 +129,181 @@ function M!(
     w ./= n
 end
 
+"""
+interface batched version
+"""
 function EM(
-    R::KmeansResult{Matrix{T}, T, Int}, X::AbstractArray{T}, Xtest::AbstractArray{T}, K::Int;
+    X::Vector{A} where A <: AbstractArray{T}, K::Int;
+    init::Union{AbstractArray{T, 2}, Nothing}=nothing,
+    tol::T=convert(T, 1e-6), maxiter::Int=10000
+) where T <: Real
+    n = sum([size(x, 1) for x ∈ X])
+    d = size(X[1], 2)
+    R = [kmeans(transpose(x), K; k_init=init, tol=tol, max_iters=1000) for x ∈ X]
+    @debug "R" R
+    w = mapreduce(r -> counts(r.assignments), +, R)
+    @debug "w" w
+    w = convert(Array{T}, reshape(w ./ n, 1, K))
+    μ = mean([r.centers for r ∈ R])
+    @debug "μ" μ
+    R = [convert(Array{T}, [x == k ? 1 : 0 for x ∈ r.assignments, k ∈ 1:K]) 
+        for r ∈ R]
+    @debug "R" R
+    C = [cholesky!(I + zeros(T, d, d)) for k ∈ 1:K]
+    Σ = [I + zeros(T, d, d) for k ∈ 1:K]
+    updateΣ!(C, Σ, μ, R, X, deepcopy(X), w)
+    @debug "Σ" Σ
+    @debug "C" C
+    #model = GMM(d, K, ones(T, K) ./ K, μ, Σ)
+    EM!(R, X, w, μ, C, Σ; tol=tol, maxiter=maxiter)
+end
+
+"""
+batched version
+"""
+function EM!(
+    R::AbstractVector{A} where A <: AbstractArray{T}, 
+    X::AbstractVector{A} where A <: AbstractArray{T}, 
+    w::AbstractMatrix{T}, μ::AbstractMatrix{T}, 
+    C::AbstractVector{B} where B <: Cholesky{T, Matrix{T}},
+    Σ::AbstractVector{A} where A <: AbstractArray{T};
     tol::T=convert(T, 1e-6), maxiter::Int=1000
 ) where T <: Real
-    n, d = size(X)
-    # init
-    a = assignments(R)
-    μ = Matrix{T}(undef, d, K)
-    for k ∈ 1:K
-        μ[:, k] .= mean(X[findall(x -> x == k, a), :], dims=1)[:]
+    n_bs = size(X, 1)
+    n = sum([size(x, 1) for x ∈ X])
+    #n2, K = size(R)
+    #n == n2 || throw(DimensionMismatch("Dimension of X and R mismatch."))
+    # allocate memory for temporary matrices
+    Xo = deepcopy(X)
+    #covmat = zeros(T, n, n)
+    # allocate memory for llh
+    llh = zeros(T, maxiter)
+    llh[1] = -Inf32
+    prog = ProgressUnknown("EM for gmm...", spinner=true)
+    incr = NaN
+    for iter ∈ 2:maxiter
+        ProgressMeter.next!(prog, spinner="🕐🕑🕒🕓🕔🕕🕖🕗🕘🕙🕚🕛"; showvalues = [(:iter, iter-1), (:incr, incr)])
+        # E-step
+        @debug "R" R
+        #llh[iter] = Folds.sum(
+        #    E!(r, x, w, μ, C, xo) for (r, x, xo) ∈ zip(R, X, Xo)
+        #)
+        @showprogress 0.1 "$(iter-1) E step" for (r, x, xo) ∈ zip(R, X, Xo)
+        #end
+            llh[iter] += E!(r, x, w, μ, C, xo)
+            #@info "X" X
+        end
+        llh[iter] /= n 
+        @info "llh $(iter) " llh[iter]
+        @debug "R" R
+        # update the coefficients and store in wp
+        fill!(w, 0)
+        @inbounds for bt ∈ 1:n_bs
+            w .+= sum(R[bt], dims=1)
+            #@info "X" X
+        end
+        # now update other params M step
+        M!(μ, C, Σ, w, X, Xo, R)
+        w ./= n
+        @debug "R" R
+        @debug "w" w
+        incr = (llh[iter] - llh[iter-1]) / llh[iter-1]
+        
+        if abs(incr) < tol || iter == maxiter
+            ProgressMeter.finish!(prog)
+            iter != maxiter || @warn "Not converged after $(maxiter) steps"
+            return R
+        end
     end
-    Σ = [cholesky!(cov(X)) for k ∈ 1:K]
-    w = convert(Array{T}, reshape(counts(R) ./ n, 1, K))  # cluster size
-    R = [x == k ? 1 : 0 for x ∈ a, k ∈ 1:K]
-    
+end
 
-    #model = GMM(d, K, ones(T, K) ./ K, μ, Σ)
-    EM!(convert(Array{T}, R), copy(X), w, μ, Σ; 
-        tol=tol, maxiter=maxiter)
-    ntest = size(Xtest, 1)
-    Rtest = zeros(T, ntest, K)
-    covmat = zeros(T, ntest, ntest)
-    Xo = copy(Xtest)
-    E!(Rtest, Xtest, w, μ, Σ, Xo, covmat)
-    return Rtest
+function E!(
+    R::AbstractArray{T},  X::AbstractArray{T}, w::AbstractArray{T},
+    μ::AbstractArray{T}, Σ::AbstractVector{A} where A <: Cholesky{T, Matrix{T}},
+    Xo::AbstractArray{T}
+) where T <: Real
+    n, K = size(R)
+    @debug "μ" μ
+    @inbounds for k ∈ 1:K
+        expectation!(
+            view(R, :, k), X, Xo, view(μ, :, k), Σ[k]
+        )
+    end
+    R .+= log.(w)
+    llh = logsumexp(R, dims=2)
+    R .-= llh
+    R .= exp.(R)
+    @debug "R" R
+    return sum(llh)
+end
+
+function expectation!(
+    Rk::AbstractVector{T},
+    X::AbstractArray{T},
+    Xo::AbstractArray{T},
+    μ::AbstractVector{T},
+    C::Cholesky{T, Matrix{T}}
+) where T <: Real
+    n, d = size(X)
+    copyto!(Xo, X)
+    Xo .-= μ'
+    #@debug "X Xo" X sum(Xo, dims=1)
+    #C = cholesky!(Hermitian(Σ))
+    fill!(Rk, -logdet(C) / 2 - log(2π) * d / 2)
+    #rdiv!(Xo, C.U)
+    #@turbo for nn ∈ 1:n, dd ∈ 1:d
+    #    Rk[nn] -= Xo[nn, dd] ^ 2 / 2 
+    #end
+    #mul!(covmat, Xo, C \ transpose(Xo))
+    #@debug "covmat" diag(covmat)
+    Rk .-= diag(Xo * (C \ transpose(Xo))) ./ 2
+end
+
+function M!(
+    μ::AbstractMatrix{T}, C::AbstractVector{A} where A <: Cholesky{T, Matrix{T}},
+    Σ::AbstractVector{B} where B <: AbstractArray{T}, w::AbstractMatrix{T},
+    X::AbstractVector{B} where B <: AbstractArray{T}, 
+    Xo::AbstractVector{B} where B <: AbstractArray{T}, 
+    R::AbstractVector{B} where B <: AbstractArray{T},
+) where T <: Real
+    updateμ!(μ, R, X, w)
+    @debug "μ" μ
+    updateΣ!(C, Σ, μ, R, X, Xo, w)
+end
+
+function updateμ!(
+    μ::AbstractArray{T}, R::AbstractVector{A} where A <: AbstractArray{T}, 
+    X::AbstractVector{A} where A <: AbstractArray{T}, 
+    w::AbstractMatrix{T},
+) where T <: Real
+    fill!(μ, 0)
+    for (x, r) ∈ zip(X, R)
+        μ .+= transpose(x) * r
+    end
+    μ ./= w
+end
+
+function updateΣ!(
+    C::AbstractVector{A} where A <: Cholesky{T, Matrix{T}},
+    Σ::AbstractVector{B} where B <: AbstractArray{T}, 
+    μ::AbstractArray{T}, R::AbstractVector{B} where B <: AbstractArray{T}, 
+    X::AbstractVector{B} where B <: AbstractArray{T}, 
+    Xo::AbstractVector{B} where B <: AbstractArray{T}, 
+    w::AbstractMatrix{T},
+) where T <: Real
+    K = size(μ, 2)
+    n_bs = size(X, 1)
+    # update Σ
+    @showprogress 0.5 "update Σ..." for k ∈ 1:K
+        fill!(Σ[k], 0)
+        μk = @view μ[:, k]
+        @inbounds for bt ∈ 1:n_bs
+            copyto!(Xo[bt], X[bt])
+            Xo[bt] .-= μk'
+            Σ[k] .+= transpose(Xo[bt]) * Diagonal(view(R[bt], :, k)) * Xo[bt]
+        end
+        Σ[k] ./= w[1, k]
+        C[k] = cholesky!(Hermitian(Σ[k] + I * 1f-6))
+        @debug "Σ[$(k)]" Σ[k]
+    end
 end
