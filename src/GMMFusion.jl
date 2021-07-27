@@ -13,5 +13,6 @@ using ParallelKMeans
 export EM, EM!
 
 include("gmm.jl")
-include("fusion.jl")
+#include("fusion.jl")
+include("multimodal.jl")
 end
