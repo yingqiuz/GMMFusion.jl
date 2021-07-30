@@ -32,7 +32,7 @@ function EM(
     Rtest = zeros(T, ntest, K)
     covmat = zeros(T, ntest, ntest)
     Xo = copy(XLtest)
-    E!(Rtest, XLtest, w, μL, ΣL, Xo, covmat)
+    E!(Rtest, XLtest, w, μL, ΣL, Xo)
     return Rtest
 end
 
