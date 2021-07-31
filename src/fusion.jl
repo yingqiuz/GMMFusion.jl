@@ -1,17 +1,29 @@
+function predict(
+    model::FusedGMM{T}, XLtest::AbstractArray{T}
+) where T <: Real
+    K = model.K
+    ntest = size(XLtest, 1)
+    Rtest = zeros(T, ntest, K)
+    covmat = zeros(T, ntest, ntest)
+    Xo = copy(XLtest)
+    E!(Rtest, XLtest, model.w, model.μ, model.ΣL, Xo, covmat)
+    return Rtest
+end
+
 """
 interface
 """
 function EM(
     XH::AbstractArray{T}, XL::AbstractArray{T}, XLtest::AbstractArray{T}, K::Int;
     init::Union{Symbol, SeedingAlgorithm, AbstractVector{<:Integer}}=:kmpp,
-    tol::T=convert(T, 1e-6), maxiter::Int=1000, transform_high::Bool=false
+    tol::T=convert(T, 1e-6), maxiter::Int=1000, transform_high::Bool=true
 ) where T <: Real
     n, d = size(XH)
     n == size(XL, 1) || throw(DimensionMismatch("Size of XH and XL mismatch."))
     # init - high quality
     RH = kmeans(XH', K; init=init, tol=tol, maxiter=maxiter)
     a = assignments(RH)
-    w = convert(Array{T}, reshape(counts(RH) ./ n, 1, K))  # cluster size
+    w = convert(Array{T}, counts(RH) ./ n)  # cluster size
     μH = copy(RH.centers)
     @debug "μH" μH
     ΣH = [cholesky!(cov(XH)) for k ∈ 1:K]
@@ -42,13 +54,13 @@ function EM(
         @debug "ΣL" ΣL
         @debug "ΣH" ΣH
         EM!(R, XH, XL, w, μL, ΣH, ΣL, U; tol=tol, maxiter=maxiter)
-        #return FusedGMM(K, d, w, μH, ΣH, ΣL, U)
-        ntest = size(XLtest, 1)
-        Rtest = zeros(T, ntest, K)
-        covmat = zeros(T, ntest, ntest)
-        Xo = copy(XLtest)
-        E!(Rtest, XLtest, w, μL, ΣL, Xo, covmat)
-        return Rtest
+        return FusedGMM(K, d, w, μL, ΣH, ΣL, U)
+        #ntest = size(XLtest, 1)
+        #Rtest = zeros(T, ntest, K)
+        #covmat = zeros(T, ntest, ntest)
+        #Xo = copy(XLtest)
+        #E!(Rtest, XLtest, w, μL, ΣL, Xo, covmat)
+        #return Rtest
     else
         #zu, _, v = svd!(μH * μL')
         #U = u * v'
@@ -61,14 +73,14 @@ function EM(
         @debug "ΣL" ΣL
         @debug "ΣH" ΣH
         EM!(R, XL, XH, w, μH, ΣL, ΣH, U; tol=tol, maxiter=maxiter)
-        #return FusedGMM(K, d, w, μH, ΣH, ΣL, U)
-        ntest = size(XLtest, 1)
-        Rtest = zeros(T, ntest, K)
-        covmat = zeros(T, ntest, ntest)
-        Xo = copy(XLtest * U')
-        copyto!(XLtest, Xo)
-        E!(Rtest, XLtest, w, μH, ΣL, Xo, covmat)
-        return Rtest
+        return FusedGMM(K, d, w, μH, ΣH, ΣL, U)
+        #ntest = size(XLtest, 1)
+        #Rtest = zeros(T, ntest, K)
+        #covmat = zeros(T, ntest, ntest)
+        #Xo = copy(XLtest * U')
+        #copyto!(XLtest, Xo)
+        #E!(Rtest, XLtest, w, μH, ΣL, Xo, covmat)
+        #return Rtest
     end
 end
 
@@ -77,7 +89,7 @@ main algorithm
 """
 function EM!(
     R::AbstractArray{T}, X1::AbstractArray{T}, X2::AbstractArray{T},
-    w::AbstractMatrix{T}, μ::AbstractMatrix{T}, 
+    w::AbstractVector{T}, μ::AbstractMatrix{T}, 
     Σ1::AbstractVector{A} where A <: Cholesky{T, Matrix{T}}, 
     Σ2::AbstractVector{A} where A <: Cholesky{T, Matrix{T}}, 
     U::AbstractMatrix{T}; tol::T=convert(T, 1e-6), maxiter::Int=10000
@@ -93,9 +105,14 @@ function EM!(
     X1o = copy(X1)
     X2o = copy(X2)
     cov1, cov2 = [zeros(T, n, n) for _ ∈ 1:2]
-
-    @showprogress 0.1 "EM..." for iter ∈ 2:maxiter 
+    incr = NaN32
+    prog = ProgressUnknown("Running EM...", spinner=true)
+    for iter ∈ 2:maxiter 
         # E-step
+        ProgressMeter.next!(
+            prog; spinner="🕐🕑🕒🕓🕔🕕🕖🕗🕘🕙🕚🕛",
+            showvalues = [(:iter, iter-1), (:incr, incr)]
+        )
         llh[iter] = E!(R, X1, X2, w, μ, Σ1, Σ2, X1o, X2o, cov1, cov2, U)
         @debug "llh" llh[iter]
         # M-step
@@ -106,8 +123,9 @@ function EM!(
         @debug "μ" μ
         @debug "Σ2" Σ2
         @debug "Σ1" Σ1
-        @info "iteration $(iter-1), incr" incr
+        #@info "iteration $(iter-1), incr" incr
         if abs(incr) < tol || iter == maxiter
+            ProgressMeter.finish!(prog)
             iter != maxiter || @warn "Not converged after $(maxiter) steps"
             return R
         end
@@ -120,7 +138,7 @@ E step
 """
 function E!(
     R::AbstractArray{T}, X1::AbstractArray{T}, X2::AbstractArray{T}, 
-    w::AbstractArray{T}, μ::AbstractArray{T}, 
+    w::AbstractVector{T}, μ::AbstractArray{T}, 
     Σ1::AbstractVector{A} where A <: Cholesky{T, Matrix{T}},
     Σ2::AbstractVector{A} where A <: Cholesky{T, Matrix{T}},
     X1o::AbstractArray{T}, X2o::AbstractArray{T}, 
@@ -134,7 +152,7 @@ function E!(
             view(μ, :, k), Σ1[k], Σ2[k], U
         )
     end
-    R .+= log.(w)
+    R .+= log.(w')
     llh = logsumexp(R, dims=2)
     R .-= llh
     @avx R .= exp.(R)
@@ -167,7 +185,7 @@ function expectation!(
 end
 
 function M!(
-    w::AbstractMatrix{T}, μ::AbstractMatrix{T}, U::AbstractArray{T},
+    w::AbstractVector{T}, μ::AbstractMatrix{T}, U::AbstractArray{T},
     Σ1::AbstractVector{A} where A <: Cholesky{T, Matrix{T}}, 
     Σ2::AbstractVector{A} where A <: Cholesky{T, Matrix{T}}, 
     R::AbstractArray{T}, X1::AbstractArray{T}, X2::AbstractArray{T},
@@ -175,7 +193,8 @@ function M!(
 ) where T <: Real
     n, K = size(R)
     # udpate parameters
-    w .= sum(R, dims=1) # remember to div by n
+    sum!(w, R')
+    #w .= sum(R, dims=1) # remember to div by n
     # update μL
     updateμ!(μ, R, X1, X1o, X2, X2o, w, Σ1, Σ2, U, K)
     # update U
@@ -187,7 +206,7 @@ end
 
 function updateμ!(
     μ::AbstractArray{T}, R::AbstractArray{T}, X1::AbstractArray{T}, X1o::AbstractArray{T},
-    X2::AbstractArray{T}, X2o::AbstractArray{T}, w::AbstractArray{T},
+    X2::AbstractArray{T}, X2o::AbstractArray{T}, w::AbstractVector{T},
     Σ1::AbstractVector{A} where A <: Cholesky{T, Matrix{T}}, 
     Σ2::AbstractVector{A} where A <: Cholesky{T, Matrix{T}}, 
     U::AbstractArray{T}, K::Int=size(R, 2)
@@ -203,7 +222,7 @@ function updateμ!(
         rdiv!(X2o, Σ2[k])
         mul!(μk, transpose(X1o + X2o), Rk)
         ldiv!(cholesky!(LinearAlgebra.inv!(Σ1[k]) + LinearAlgebra.inv!(Σ2[k])), μk)
-        μk ./= w[1, k]
+        μk ./= w[k]
     end
 end
 
@@ -233,7 +252,7 @@ function updateΣ!(
     Σ2::AbstractVector{A} where A <: Cholesky{T, Matrix{T}}, 
     X1::AbstractArray{T}, X1o::AbstractArray{T},
     X2::AbstractArray{T}, X2o::AbstractArray{T}, 
-    w::AbstractArray{T}, μ::AbstractArray{T}, U::AbstractArray{T},
+    w::AbstractVector{T}, μ::AbstractArray{T}, U::AbstractArray{T},
     R::AbstractArray{T}, K::Int=size(R, 2)
 ) where T <: Real
     @inbounds for k ∈ 1:K
@@ -241,13 +260,13 @@ function updateΣ!(
         copyto!(X1o, X1 * U')
         X1o .-= μk'
         copyto!(X2o, X2)
-        X2Lo .-= μk'
+        X2o .-= μk'
         map([X1o, X2o]) do x
             x .*= sqrt.(view(R, :, k))
         end
         #Xo .*= sqrt.(view(R, :, k))
-        Σ1[k] = cholesky!((X1o' * X1o) ./ w[1, k] + I * 1f-8)
-        Σ2[k] = cholesky!((X2o' * X2o) ./ w[1, k] + I * 1f-8)
+        Σ1[k] = cholesky!((X1o' * X1o) ./ w[k] + I * 1f-8)
+        Σ2[k] = cholesky!((X2o' * X2o) ./ w[k] + I * 1f-8)
         #update!(ΣH[k], XoH, w[1, k])
         #update!(ΣL[k], XoL, w[1, k])
     end

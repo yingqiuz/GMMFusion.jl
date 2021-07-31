@@ -1,49 +1,36 @@
-using Base: Real
-struct GMM
-    n::Int                         # number of Gaussians
-    d::Int                         # dimension of Gaussian
-    w::AbstractVector                      # weights: n
-    μ::AbstractArray                       # means: n x d
-    Σ::AbstractVector{AbstractArray} # diagonal covmatariances n x d, or Vector n of d x d full covmatariances
-    #hist::Array{History}           # history of this GMM
-end
-
-struct FusedGMM
-    K::Int                         # number of Gaussians
-    d::Int                         # dimension of Gaussian
-    w::AbstractVector                      # weights: n
-    μ::AbstractArray                       # means: n x d
-    ΣH::AbstractVector # diagonal covmatariances n x d, or Vector n of d x d full covmatariances
-    ΣL::AbstractVector
-    U::AbstractArray
-    #hist::Array{History}           # history of this GMM
+function predict(
+    model::GMM{T}, 
+    Xtest::AbstractArray{T}
+) where T <: Real
+    K = model.K
+    ntest = size(Xtest, 1)
+    Rtest = zeros(T, ntest, K)
+    covmat = zeros(T, ntest, ntest)
+    Xo = copy(Xtest)
+    E!(Rtest, Xtest, model.w, model.μ, model.Σ, Xo, covmat)
+    return Rtest
 end
 
 function EM(
-    X::AbstractArray{T}, Xtest::AbstractArray{T}, K::Int;
+    X::AbstractArray{T}, K::Int;
     init::Union{Symbol, SeedingAlgorithm, AbstractVector{<:Integer}}=:kmpp,
     tol::T=convert(T, 1e-6), maxiter::Int=1000
 ) where T <: Real
     n, d = size(X)
     # init 
     R = kmeans(X', K; init=init, tol=tol, maxiter=maxiter)
-    w = convert(Array{T}, reshape(counts(R) ./ n, 1, K))  # cluster size
+    w = convert(Array{T}, counts(R) ./ n)  # cluster size
     μ = copy(R.centers)
     Σ = [cholesky!(cov(X)) for k ∈ 1:K]
     R = [x == k ? 1 : 0 for x ∈ assignments(R), k ∈ 1:K]
     #model = GMM(d, K, ones(T, K) ./ K, μ, Σ)
     EM!(convert(Array{T}, R), copy(X), w, μ, Σ; 
         tol=tol, maxiter=maxiter)
-    ntest = size(Xtest, 1)
-    Rtest = zeros(T, ntest, K)
-    covmat = zeros(T, ntest, ntest)
-    Xo = copy(Xtest)
-    E!(Rtest, Xtest, w, μ, Σ, Xo, covmat)
-    return Rtest
+    return GMM(K, d, w, μ, Σ)
 end
 
 function EM!(
-    R::AbstractArray{T}, X::AbstractArray{T}, w::AbstractArray{T}, 
+    R::AbstractArray{T}, X::AbstractArray{T}, w::AbstractVector{T}, 
     μ::AbstractMatrix{T}, Σ::AbstractVector{A} where A <: Cholesky{T, Matrix{T}};
     tol::T=convert(T, 1e-6), maxiter::Int=1000
 ) where T <: Real
@@ -57,8 +44,14 @@ function EM!(
     # allocate memory for llh
     llh = Vector{T}(undef, maxiter)
     fill!(llh, -Inf32)
-    @showprogress 0.1 "EM for gmm..." for iter ∈ 2:maxiter
+    prog = ProgressUnknown("Running EM...", spinner=true)
+    incr = NaN32
+    for iter ∈ 2:maxiter
         # E-step
+        ProgressMeter.next!(
+            prog; spinner="🕐🕑🕒🕓🕔🕕🕖🕗🕘🕙🕚🕛",
+            showvalues = [(:iter, iter-1), (:incr, incr)]
+        )
         @debug "R" R
         @debug "w" w
         @debug "μ" μ
@@ -67,8 +60,9 @@ function EM!(
         # M-step
         M!(w, μ, Σ, R, X, Xo)
         incr = (llh[iter] - llh[iter-1]) / llh[iter-1]
-        @info "iteration $(iter-1), incr" incr
+        #@info "iteration $(iter-1), incr" incr
         if abs(incr) < tol || iter == maxiter
+            ProgressMeter.finish!(prog)
             iter != maxiter || @warn "Not converged after $(maxiter) steps"
             return R
         end
@@ -76,7 +70,7 @@ function EM!(
 end
 
 function E!(
-    R::AbstractArray{T}, X::AbstractArray{T}, w::AbstractArray{T},
+    R::AbstractArray{T}, X::AbstractArray{T}, w::AbstractVector{T},
     μ::AbstractArray{T}, Σ::AbstractVector{A} where A <: Cholesky{T, Matrix{T}},
     Xo::AbstractArray{T}, covmat::AbstractArray{T}
 ) where T <: Real
@@ -88,11 +82,11 @@ function E!(
         )
     end
     @debug "R" R
-    R .+= log.(w)
+    @avx R .+= log.(w')
     @debug "R" R
     llh = logsumexp(R, dims=2)
     R .-= llh
-    R .= exp.(R)
+    @avx R .= exp.(R)
     @debug "R" R
     return sum(llh) / n
 end
@@ -117,27 +111,28 @@ function expectation!(
 end
 
 function M!(
-    w::AbstractArray{T}, μ::AbstractMatrix{T}, Σ::AbstractVector{A} where A <: Cholesky{T, Matrix{T}}, 
+    w::AbstractVector{T}, μ::AbstractMatrix{T}, Σ::AbstractVector{A} where A <: Cholesky{T, Matrix{T}}, 
     R::AbstractMatrix{T}, X::AbstractMatrix{T}, Xo::AbstractMatrix{T}
 ) where T <: Real
     n, K = size(R)
     # udpate parameters
-    w .= sum(R, dims=1) # remember to div by n
+    sum!(w, R')
+    #w .= vec(sum(R, dims=1)) # remember to div by n
     @debug "w" w
     mul!(μ, transpose(X), R)
-    μ ./= w
+    μ ./= w'
     # update Σ
     @inbounds for k ∈ 1:K
         copy!(Xo, X)
         Xo .-= transpose(view(μ, :, k))
         Xo .*= sqrt.(view(R, :, k))
-        Σ[k] = cholesky!(Xo' * Xo ./ w[1, k] + I * 1f-8)
+        Σ[k] = cholesky!(Xo' * Xo ./ w[k] + I * 1f-8)
     end
     w ./= n
 end
 
 function EM(
-    R::KmeansResult{Matrix{T}, T, Int}, X::AbstractArray{T}, Xtest::AbstractArray{T}, K::Int;
+    R::KmeansResult{Matrix{T}, T, Int}, X::AbstractArray{T}, K::Int;
     tol::T=convert(T, 1e-6), maxiter::Int=1000
 ) where T <: Real
     n, d = size(X)
@@ -148,17 +143,10 @@ function EM(
         μ[:, k] .= mean(X[findall(x -> x == k, a), :], dims=1)[:]
     end
     Σ = [cholesky!(cov(X)) for k ∈ 1:K]
-    w = convert(Array{T}, reshape(counts(R) ./ n, 1, K))  # cluster size
+    w = convert(Array{T}, counts(R) ./ n)  # cluster size
     R = [x == k ? 1 : 0 for x ∈ a, k ∈ 1:K]
-    
-
     #model = GMM(d, K, ones(T, K) ./ K, μ, Σ)
     EM!(convert(Array{T}, R), copy(X), w, μ, Σ; 
         tol=tol, maxiter=maxiter)
-    ntest = size(Xtest, 1)
-    Rtest = zeros(T, ntest, K)
-    covmat = zeros(T, ntest, ntest)
-    Xo = copy(Xtest)
-    E!(Rtest, Xtest, w, μ, Σ, Xo, covmat)
-    return Rtest
+    return GMM(K, d, w, μ, Σ)
 end
