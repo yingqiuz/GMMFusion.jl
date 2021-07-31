@@ -106,7 +106,7 @@ function EM!(
     X2o = copy(X2)
     cov1, cov2 = [zeros(T, n, n) for _ ∈ 1:2]
     incr = NaN32
-    prog = ProgressUnknown("Running EM...", spinner=true)
+    prog = ProgressUnknown("Running EM...", dt=0.1, spinner=true)
     for iter ∈ 2:maxiter 
         # E-step
         ProgressMeter.next!(

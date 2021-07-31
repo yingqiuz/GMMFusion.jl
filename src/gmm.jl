@@ -44,7 +44,7 @@ function EM!(
     # allocate memory for llh
     llh = Vector{T}(undef, maxiter)
     fill!(llh, -Inf32)
-    prog = ProgressUnknown("Running EM...", spinner=true)
+    prog = ProgressUnknown("Running EM...", dt=0.1, spinner=true)
     incr = NaN32
     for iter ∈ 2:maxiter
         # E-step
