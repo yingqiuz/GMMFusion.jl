@@ -8,6 +8,17 @@ struct GMM
     #hist::Array{History}           # history of this GMM
 end
 
+struct FusedGMM
+    K::Int                         # number of Gaussians
+    d::Int                         # dimension of Gaussian
+    w::AbstractVector                      # weights: n
+    μ::AbstractArray                       # means: n x d
+    ΣH::AbstractVector # diagonal covmatariances n x d, or Vector n of d x d full covmatariances
+    ΣL::AbstractVector
+    U::AbstractArray
+    #hist::Array{History}           # history of this GMM
+end
+
 function EM(
     X::AbstractArray{T}, Xtest::AbstractArray{T}, K::Int;
     init::Union{Symbol, SeedingAlgorithm, AbstractVector{<:Integer}}=:kmpp,

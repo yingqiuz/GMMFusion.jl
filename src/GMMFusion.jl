@@ -7,8 +7,9 @@ using StatsBase, StatsFuns
 using Distributed
 using ProgressMeter
 using Clustering
+using LoopVectorization
 
-export EM, EM!, fusion, fusion!
+export EM, EM!, fusion, fusion!, GMM, FusedGMM
 
 include("gmm.jl")
 include("fusion.jl")
