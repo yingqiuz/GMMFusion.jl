@@ -14,7 +14,7 @@ end
 interface
 """
 function EM(
-    XH::AbstractArray{T}, XL::AbstractArray{T}, XLtest::AbstractArray{T}, K::Int;
+    XH::AbstractArray{T}, XL::AbstractArray{T}, K::Int;
     init::Union{Symbol, SeedingAlgorithm, AbstractVector{<:Integer}}=:kmpp,
     tol::T=convert(T, 1e-6), maxiter::Int=1000, transform_high::Bool=true
 ) where T <: Real
