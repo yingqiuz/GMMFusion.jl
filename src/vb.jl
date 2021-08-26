@@ -1,51 +1,55 @@
-@with_kw immutable struct Priors{T<:Real}
+@with_kw mutable struct Prior{T<:Real}
     K::Int
+    d::Int = size(m, 1)
     α::AbstractArray{T} = ones(T, K)
     β::AbstractArray{T} = ones(T, K)
-    ν::AbstractARray{T}
+    ν::AbstractArray{T} = ones(T, K) .* (d+1)
     m::AbstractArray{T}
-    W::AbstractArray
-    logW::AbstractArray{T}
+    W::AbstractVector{AbstractArray{T}} = [zeros(T, d, d) + I for k in 1:K]
+    chol::AbstractArray=[cholesky!(Hermitian(w + I * 1f-6)) for w in W]
+    logW::AbstractArray{T}=[logdet(x) for x in chol]
 end
 
-@with_kw immutable struct Batch{T<:Real}
+@with_kw mutable struct Batch{T<:Real}
     K::Int
+    n::Int = size(X, 1)
+    d::Int = size(X, 2)
     X::AbstractArray{T}
-    R::AbstractArray{T} = fill(1f0/K, size(X, 1), K)
+    R::AbstractArray{T}
     α::AbstractArray{T}
     β::AbstractArray{T}
     ν::AbstractArray{T}
     m::AbstractArray{T}
-    W::AbstractArray
+    W::AbstractArray{AbstractArray{T}}
+    chol::AbstractArray=[cholesky!(Hermitian(w + I * 1f-6)) for w in W]
     logW::AbstractArray{T}
+    lb::T=convert(T, -Inf)
 end
 
 """
 Variational Bayesian Gaussian Mixture Model
 """
 function MixGaussVb(
-    X::AbstractArray{T}, prior::Priors{T};
-    init::Union{Symbol, SeedingAlgorithm, AbstractVector{<:Integer}}=:kmpp, 
-    tol::T=convert(T, 1e-6), maxiter::Int=10000
+    X::AbstractArray{T}, prior::Prior{T}, Rinit::AbstractArray{T}=fill(1f0/prior.K, size(X, 1), prior.K);
+    tol::T=convert(T, 1f-6), maxiter::Int=1000
 ) where T <: Real
-    n, d = size(X)
     @debug "prior" prior
     K = prior.K
+    n, d = size(X)
+    prior.d == d || throw(DimensionMismatch("Dimension of priors and data mismatch."))
     # init 
-    model = Batch(K=K, X=X, α=prior.α, β=prior.β, ν=prior.ν, m=prior.m, W=prior.W, logW=prior.logW)
+    model = Batch(K=K, n=n, d=d, X=X, R=Rinit, α=prior.α, β=prior.β, ν=prior.ν, m=prior.m, W=prior.W, chol=prior.chol, logW=prior.logW)
     MixGaussVb!(model, prior; tol=tol, maxiter=maxiter)
 end
 
 function MixGaussVb!(
-    model::Batch{T}, prior::Priors{T};
-    tol::T=convert(T, 1e-6), maxiter::Int=1000
+    model::Batch{T}, prior::Prior{T};
+    tol::T=convert(T, 1f-6), maxiter::Int=1000
 ) where T <: Real
-    n, d = size(model.X)
-    K = model.K
     model.K == prior.K || throw(DimensionMismatch("Prior K and model K mismatch."))
     # allocate memory for temporary matrices
-    Xo = copy(X)
-    nk = zeros(T, K)
+    Xo = copy(model.X)
+    nk = zeros(T, model.K)
     # allocate memory for lowerbound
     lb = fill(-Inf32, maxiter)
     prog = ProgressUnknown("Running Variational Bayesian Gaussian mixture...", dt=0.1, spinner=true)
@@ -57,28 +61,31 @@ function MixGaussVb!(
         )
         @debug "model" model
         # M-step
-        M!(model, nk, prior)
+        maximise!(model, nk, Xo, prior)
+        # E-step
+        expect!(model, Xo)
+        lb[iter] = LowerBound(model, prior)
         incr = (llh[iter] - llh[iter-1]) / llh[iter-1]
         #@info "iteration $(iter-1), incr" incr
         if abs(incr) < tol || iter == maxiter
             ProgressMeter.finish!(prog)
             iter != maxiter || @warn "Not converged after $(maxiter) steps"
-            return R
+            return model
         end
     end
 end
 
-function M!(model::Batch{T}, nk::AbstractArray{T}, Xo::AbstractArray{T}, prior::Priors{T}) where T <: Real
+function maximise!(model::Batch{T}, nk::AbstractArray{T}, Xo::AbstractArray{T}, prior::Prior{T}) where T <: Real
     # posterior parameters
     sum!(nk, model.R')
     model.α .= prior.α .+ nk
     model.β .= prior.β .+ nk
     model.ν .= prior.ν .+ nk
-    # update m
+    # update posterior mean
     mul!(model.m, model.X', model.R)
     model.m .+= prior.β' .* prior.m
-    model.m ./= model.β
-    for k ∈ 1:K
+    model.m ./= model.β'
+    for k ∈ 1:model.K
         mk = view(model.m, :, k)
         mk0 = view(prior.m, :, k)
         copyto!(Xo, model.X)
@@ -86,43 +93,52 @@ function M!(model::Batch{T}, nk::AbstractArray{T}, Xo::AbstractArray{T}, prior::
         Xo .*= sqrt.(view(model.R, :, k))
         mul!(model.W[k], Xo', Xo)
         model.W[k] .+= prior.W[k] .+ prior.β[k] .* (mk .- mk0) .* (mk .- mk0)'
+        model.chol[k] = cholesky!(Hermitian(model.W[k] + I * 1f-6))
+        model.logW[k] = logdet(model.chol[k])
     end
 end
 
-function E!(
-    model::Batch{T}, prior::Priors{T}, 
+function expect!(
+    model::Batch{T}, Xo::AbstractArray{T},
 ) where T <: Real
-    n, d = size(model.X)
-    Xo = copy(model.X)
-    for k ∈ 1:K 
-        ## 
+    d = model.d
+    for k ∈ 1:model.K 
+        ## EQ
         Rk = view(model.R, :, k)
         mk = view(model.m, :, k)
-        copyto!(Xo, X)
+        copyto!(Xo, model.X)
         Xo .-= mk'
-        copyto!(Rk, diag(Xo * (W \ Xo')))
-        Rk .+= d / model.β[k] + d * log(2π)
+        copyto!(Rk, diag((Xo / model.chol[k]) * Xo'))
     end
-    model.R .-= sum(digamma.((model.v' .- collect(1:d) .+ 1)./2), dims=1) .- logdet(W) .+ d * log(2)
-    model.R ./= -2
-    model.R .+= digamma(model.α') .- digamma(sum(model.α))
-    softmax!(model.R, dims=2)
+    model.R .*= model.ν'
+    model.R .+= d ./ model.β' .+ d*log(2f0π)
+    # minus ElogLambda
+    model.R .-= sum(digamma.((model.ν' .- collect(1:d) .+ 1)./2), dims=1) .- model.logW' .+ d * log(2f0)
+    model.R .*= -0.5f0
+    model.R .+= digamma.(model.α') .- digamma(sum(model.α))
+    Flux.softmax!(model.R, dims=2)
 end
 
-function LowerBound(model::Batch{T}, prior::Priors{T}) where T <: Real
-    n, d = size(model.X)
-    K = size(model.R, 2)
+function LowerBound(model::Batch{T}, prior::Prior{T}) where T <: Real
     # Epz - Eqz
-    L = 0 - sum(model.R .* log.(model.R))
+    lb = @avx 0 - sum(model.R .* log.(model.R))
     # Eppi - Eqpi
-    L += loggamma(sum(prior.α)) - sum(loggamma.(prior.α)) 
-    L -= loggamma(sum(model.α)) - sum(loggamma.(model.α))
+    lb += loggamma(sum(prior.α)) - sum(loggamma.(prior.α)) 
+    lb -= loggamma(sum(model.α)) - sum(loggamma.(model.α))
     # Epmu - Eqmu
-    L += d * sum(log.(prior.β)) / 2 - d*sum(log.(mode.β)) / 2
+    lb += 0.5f0d * sum(log.(prior.β)) - 0.5f0d * sum(log.(model.β))
     # EpLambda - EqLambda
-    L -= sum(0.5f0 .* prior.v .* (prior.logW .+ d*log(2))) + sum(loggamma.((prior.v' .- collect(1:d) .+ 1) ./ 2))
-    L += sum(0.5f0 .* model.v .* (model.logW .+ d*log(2))) + sum(loggamma.((model.v' .- collect(1:d) .+ 1) ./ 2))
+    lb -= EpLambda(prior) - EpLambda(model)
+    #lb += sum(0.5f0 .* model.ν .* (-1f0 .* model.logW .+ d*log(2f0))) + sum(logmvgamma.(model.d, 0.5f0 .* model.ν))
     # Epx
-    L += -0.5f0 * d * n * log(2π)
-    return L
+    lb += -0.5f0 * d * n * log(2f0π)
+    model.lb = lb
+    return lb
+end
+
+EpLambda(x) = sum(0.5f0 .* x.ν .* (-1f0 .* x.logW .+ d*log(2f0))) + sum(logmvgamma.(x.d, 0.5f0 .* x.ν))
+
+function evidence(model::Batch{T}, prior::Prior{T}) where T <: Real
+    nk = sum(model.R, 1)[:]
+    # Epz - Eqz
 end
