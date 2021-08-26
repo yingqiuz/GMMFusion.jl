@@ -1,13 +1,15 @@
 module GMMFusion
-using Distributions: LinearAlgebra
-using Statistics: LinearAlgebra
+
 using Distributions
-using LinearAlgebra, Statistics
-using StatsBase, StatsFuns
+using LinearAlgebra
+using Statistics, StatsBase, StatsFuns
 using Distributed
 using ProgressMeter
 using Clustering
 using LoopVectorization
+using Parameters
+using SpecialFunctions
+using Flux: softmax!
 
 export EM, EM!, GMM, FusedGMM, predict
 
@@ -32,5 +34,6 @@ end
 
 include("gmm.jl")
 include("fusion.jl")
+include("vb.jl")
 
 end
