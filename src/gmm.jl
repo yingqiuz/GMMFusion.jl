@@ -126,7 +126,7 @@ function M!(
         copy!(Xo, X)
         Xo .-= transpose(view(μ, :, k))
         Xo .*= sqrt.(view(R, :, k))
-        Σ[k] = cholesky!(Xo' * Xo ./ w[k] + I * 1f-8)
+        Σ[k] = cholesky!(Xo' * Xo ./ w[k] + I * 1f-6)
     end
     w ./= n
 end
