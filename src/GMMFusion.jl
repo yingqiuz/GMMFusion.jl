@@ -9,7 +9,7 @@ using Clustering
 using LoopVectorization
 using Parameters
 using SpecialFunctions
-import Flux: softmax!, onecold, onehot
+import Flux
 
 export EM, EM!, GMM, FusedGMM, predict, MrfMixGauss, MrfMixGauss!, MRFBatch, MRFBatchSeg
 
