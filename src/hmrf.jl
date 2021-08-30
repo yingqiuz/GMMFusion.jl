@@ -100,7 +100,7 @@ function expect!(model::MRFBatchSeg{T}, Xo::AbstractArray{T}, L::AbstractArray{T
         copyto!(Xo, model.X)
         Xo .-= μk'
         copyto!(Rk, diag((Xo / model.Σ[k]) * Xo'))
-        Rk .+= logdet(model.Σ[K])
+        Rk .+= logdet(model.Σ[k])
         Rk .*= -0.5f0
         # log prior
         for v ∈ model.n
