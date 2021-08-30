@@ -9,7 +9,7 @@ using Clustering
 using LoopVectorization
 using Parameters
 using SpecialFunctions
-using Flux: softmax!
+using Flux: softmax!, onecold, onehot
 
 export EM, EM!, GMM, FusedGMM, predict
 
