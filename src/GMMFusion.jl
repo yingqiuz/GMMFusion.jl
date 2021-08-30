@@ -9,9 +9,9 @@ using Clustering
 using LoopVectorization
 using Parameters
 using SpecialFunctions
-using Flux: softmax!, onecold, onehot
+import Flux: softmax!, onecold, onehot
 
-export EM, EM!, GMM, FusedGMM, predict
+export EM, EM!, GMM, FusedGMM, predict, MrfMixGauss, MrfMixGauss!, MRFBatch, MRFBatchSeg
 
 struct GMM{T<:Real}
     K::Int
@@ -35,5 +35,6 @@ end
 include("gmm.jl")
 include("fusion.jl")
 include("vb.jl")
+include("hmrf.jl")
 
 end
