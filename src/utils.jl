@@ -227,9 +227,9 @@ function segment_mrf(filename::String, thalamus_mask::String, output::String, K:
     @info "R" R
     model = GMMFusion.MRFBatch(X=X, adj=adj, R=R, ω=ω, n=n, d=d, K=K, μ=copy(res.centers), Σ=[cholesky!(cov(X)+ I * 1f-6) for _ ∈ 1:K])
     GMMFusion.MrfMixGauss!(model; maxiter=10000, tol=1f-6)
-    res = Flux.onecold(model.R', 1:K)
-    @info "res" res
-    mask.raw[index] .= res
+    results = Flux.onecold(model.R', 1:K)
+    @info "res" results
+    mask.raw[index] .= results
     niwrite(output, mask)
     #!ispath(output) && mkpath(output)
     #for k ∈ 1:K
