@@ -223,7 +223,7 @@ function segment_mrf(filename::String, thalamus_mask::String, output::String, K:
     @info "X" X
     @info "isinf.(X)" findall(isinf, X)
     res = kmeans(X', K; maxiter=10000, display=:iter, tol=1e-6)
-    R = [x == k ? 1 : 0 for x ∈ assignments(res), k ∈ 1:K]
+    R = convert(Array{Float32}, [x == k ? 1 : 0 for x ∈ assignments(res), k ∈ 1:K])
     @info "R" R
     model = GMMFusion.MRFBatch(X=X, adj=adj, R=R, ω=ω, n=n, d=d, K=K, μ=copy(res.centers), Σ=[cholesky!(cov(X)+ I * 1f-6) for _ ∈ 1:K])
     GMMFusion.MrfMixGauss!(model; maxiter=10000, tol=1f-6)
