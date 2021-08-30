@@ -81,13 +81,13 @@ function maximise!(model::Union{MRFBatchSeg{T}, MRFBatch{T}}, Xo::AbstractArray{
     sum!(model.nk, model.R')
     @debug "model.R" model.R
     # update μ
-    mul!(model.μ, model.X', R)
+    mul!(model.μ, model.X', model.R)
     model.μ ./= model.nk'
     # update Σ
     @inbounds for k ∈ 1:model.K
         copyto!(Xo, model.X)
         Xo .-= transpose(view(model.μ, :, k))
-        Xo .*= sqrt.(view(R, :, k))
+        Xo .*= sqrt.(view(model.R, :, k))
         model.Σ[k] = cholesky!(Hermitian(Xo' * Xo ./ model.nk[k]) + I * 1f-5)
     end
 end
