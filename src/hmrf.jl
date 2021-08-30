@@ -1,6 +1,7 @@
 @with_kw mutable struct MRFBatch{T<:Real}
     K::Int
     X::AbstractArray{T}
+    adj::AbstractArray
     index::AbstractArray{Int} = findall(x -> x>1f-3, std(X, dims=1)[:])
     n::Int = size(X, 1)
     d::Int = size(X, 2)
@@ -13,6 +14,7 @@ end
 @with_kw mutable struct MRFBatchSeg{T<:Real}
     K::Int
     X::AbstractArray{T}
+    adj::AbstractArray
     index::AbstractArray{Int} = findall(x -> x>1f-3, std(X, dims=1)[:])
     n::Int = size(X, 1)
     d::Int = size(X, 2)

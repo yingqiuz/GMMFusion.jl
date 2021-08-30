@@ -202,31 +202,33 @@ function segment_mrf(filename::String, thalamus_mask::String, output::String, K:
     X = h5read(filename, "conn")
     n, d = size(X)
     # find adj list
-    adj = Array{Any}(undef, n)
+    adj = Array{Tuple}(undef, n)
     neighbours = Array{CartesianIndex}(undef, 6)
     @inbounds for v ∈ 1:n
-        x, y, z = index[v]...
+        x, y, z = [index[v][k] for k ∈ 1:3]
         neighbours .= [
             CartesianIndex(x-1, y, z), CartesianIndex(x+1, y, z), 
             CartesianIndex(x, y-1, z), CartesianIndex(x, y+1, z), 
             CartesianIndex(x, y, z-1), CartesianIndex(x, y, z+1)
         ]
-        adj[v] = findall(x -> (x ∈ neighbours), index)
+        adj[v] = Tuple(el for el ∈ findall(x -> (x ∈ neighbours), index))
         @info "adj[$(v)]" adj[v]
     end
+    #h5write(filename, "adj", adj)
     #labels = h5read(filename, "labels")
     X ./= sum(X, dims=2)
     X[X .== 0] .= 1f-8
     @avx X .= log.(X)
-    #X[isinf.(X)] .= 0
+    X[isinf.(X)] .= 0
     @info "X" X
     @info "isinf.(X)" findall(isinf, X)
     res = kmeans(X', K; maxiter=10000, display=:iter, tol=1e-6)
     R = [x == k ? 1 : 0 for x ∈ assignments(res), k ∈ 1:K]
     @info "R" R
-    model = MRFBatch(X=X, adj=adj, R=R, ω=ω, n=n, d=d, K=K)
+    model = GMMFusion.MRFBatch(X=X, adj=adj, R=R, ω=ω, n=n, d=d, K=K, μ=copy(res.centers), Σ=[cholesky!(cov(X)+ I * 1f-6) for _ ∈ 1:K])
     GMMFusion.MrfMixGauss!(model; maxiter=10000, tol=1f-6)
     res = Flux.onecold(model.R', 1:K)
+    @info "res" res
     mask.raw[index] .= res
     niwrite(output, mask)
     #!ispath(output) && mkpath(output)
