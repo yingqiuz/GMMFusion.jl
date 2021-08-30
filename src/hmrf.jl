@@ -133,6 +133,7 @@ function MrfMixGauss!(model::MRFBatch{T};
         maximise!(model, Xo)
         # E step
         expect!(model, Xo, L, iter)
+        incr = (L[iter] - L[iter-1]) / L[iter-1]
         ProgressMeter.next!(
             prog; showvalues = [(:iter, iter-1), (:incr, incr)]
         )
