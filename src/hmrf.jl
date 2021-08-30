@@ -6,7 +6,7 @@
     n::Int = size(X, 1)
     d::Int = size(X, 2)
     R::AbstractArray{T} = fill(1f0 / K, n, K)
-    nk::AbstractARray{T} = vec(sum(R, dims=1))
+    nk::AbstractArray{T} = vec(sum(R, dims=1))
     μ::AbstractArray{T}
     Σ::AbstractArray
     ω::T = 1f0 # penalty rate
@@ -20,7 +20,7 @@ end
     n::Int = size(X, 1)
     d::Int = size(X, 2)
     R::AbstractArray{T} = fill(1f0 / K, n, K)
-    nk::AbstractARray{T} = vec(sum(R, dims=1))
+    nk::AbstractArray{T} = vec(sum(R, dims=1))
     seg::AbstractArray{Int} = Flux.onecold(R', 1:K)
     μ::AbstractArray{T}
     Σ::AbstractArray
