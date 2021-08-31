@@ -212,7 +212,7 @@ function segment_mrf(filename::String, thalamus_mask::String, output::String, K:
             CartesianIndex(x, y, z-1), CartesianIndex(x, y, z+1)
         ]
         adj[v] = Tuple(el for el ∈ findall(x -> (x ∈ neighbours), index))
-        @info "adj[$(v)]" adj[v]
+        @debug "adj[$(v)]" adj[v]
     end
     #h5write(filename, "adj", adj)
     #labels = h5read(filename, "labels")
@@ -226,7 +226,7 @@ function segment_mrf(filename::String, thalamus_mask::String, output::String, K:
     R = convert(Array{Float32}, [x == k ? 1 : 0 for x ∈ assignments(res), k ∈ 1:K])
     @info "R" R
     model = GMMFusion.MRFBatch(X=X, adj=adj, R=R, ω=ω, n=n, d=d, K=K, μ=copy(res.centers), Σ=[cholesky!(cov(X)+ I * 1f-6) for _ ∈ 1:K])
-    GMMFusion.MrfMixGauss!(model; maxiter=10000, tol=1f-6)
+    GMMFusion.MrfMixGauss!(model; maxiter=200, tol=1f-6)
     results = Flux.onecold(model.R', 1:K)
     @info "res" results
     mask.raw[index] .= results

@@ -55,7 +55,7 @@ function MrfMixGauss!(model::MRFBatchSeg{T}; tol::T=convert(T, 1f-6), maxiter::I
     # progress bar
     prog = ProgressUnknown("Running Markov Random Field Gaussian mixture...", dt=0.1, spinner=true)
     iter = 1
-    while iter <= maxiter
+    while iter < maxiter
         iter += 1
         # M step
         maximise!(model, Xo)
@@ -72,7 +72,7 @@ function MrfMixGauss!(model::MRFBatchSeg{T}; tol::T=convert(T, 1f-6), maxiter::I
         end
     end
     ProgressMeter.finish!(prog)
-    iter == maxiter+1 || @warn "Not converged after $(maxiter) steps."
+    iter == maxiter || @warn "Not converged after $(maxiter) steps."
     return model
 end
 
@@ -129,7 +129,7 @@ function MrfMixGauss!(model::MRFBatch{T};
     # progress bar
     prog = ProgressUnknown("Running Markov Random Field Gaussian mixture...", dt=0.1, spinner=true)
     iter = 1
-    while iter <= maxiter
+    while iter < maxiter
         iter += 1
         # M step
         maximise!(model, Xo)
@@ -143,7 +143,7 @@ function MrfMixGauss!(model::MRFBatch{T};
             return model
         end
     end
-    iter == maxiter+1 || @warn "Not converged after $(maxiter) steps."
+    iter == maxiter || @warn "Not converged after $(maxiter) steps."
     return model
 end
 
