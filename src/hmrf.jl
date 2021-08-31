@@ -148,6 +148,7 @@ function MrfMixGauss!(model::MRFBatch{T};
 end
 
 function expect!(model::MRFBatch{T}, Xo::AbstractArray{T}, L::AbstractArray{T}, iter::Int) where T<:Real
+    R = deepcopy(model.R)
     @inbounds for k ∈ 1:model.K
         Rk = view(model.R, :, k)
         μk = view(model.μ, :, k)
@@ -160,7 +161,7 @@ function expect!(model::MRFBatch{T}, Xo::AbstractArray{T}, L::AbstractArray{T}, 
         @debug "Rk" Rk
         # log prior
         for v ∈ 1:model.n
-            Rk[v] += model.ω * sum([model.R[idx, k] for idx ∈ model.adj[v]])
+            Rk[v] += model.ω * sum([R[idx, k] for idx ∈ model.adj[v]])
         end
         @debug "Rk" Rk
     end
