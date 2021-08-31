@@ -102,11 +102,12 @@ function expect!(model::MRFBatchSeg{T}, Xo::AbstractArray{T}, L::AbstractArray{T
         copyto!(Rk, diag((Xo / model.Σ[k]) * Xo'))
         Rk .+= logdet(model.Σ[k])
         Rk .*= -0.5f0
-        @info "Rk" Rk
+        @debug "Rk" Rk
         # log prior
         for v ∈ model.n
             Rk[v] -= model.ω * sum([model.seg[idx] != k for idx in model.adj[v]])
         end
+        @debug "Rk" Rk
     end
     L[iter] = logsumexp(model.R) / model.n
     Flux.softmax!(model.R, dims=2)
@@ -161,6 +162,7 @@ function expect!(model::MRFBatch{T}, Xo::AbstractArray{T}, L::AbstractArray{T}, 
         for v ∈ model.n
             Rk[v] += model.ω * sum([model.R[idx, k] for idx ∈ model.adj[v]])
         end
+        @debug "Rk" Rk
     end
     L[iter] = sum(logsumexp(model.R, dims=2)) / model.n
     Flux.softmax!(model.R, dims=2)
