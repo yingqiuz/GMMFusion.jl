@@ -104,8 +104,7 @@ function expect!(model::MRFBatchSeg{T}, Xo::AbstractArray{T}, L::AbstractArray{T
         Rk .*= -0.5f0
         @debug "Rk" Rk
         # log prior
-        for v ∈ model.n
-            @debug sum([model.seg[idx] != k for idx in model.adj[v]])
+        for v ∈ 1:model.n
             Rk[v] -= model.ω * sum([model.seg[idx] != k for idx in model.adj[v]])
         end
         @debug "Rk" Rk
@@ -158,10 +157,9 @@ function expect!(model::MRFBatch{T}, Xo::AbstractArray{T}, L::AbstractArray{T}, 
         copyto!(Rk, diag((Xo / model.Σ[k]) * Xo'))
         Rk .+= logdet(model.Σ[k])
         Rk .*= -0.5f0
-        @info "Rk" Rk
+        @debug "Rk" Rk
         # log prior
-        for v ∈ model.n
-            @debug sum([model.R[idx, k] for idx ∈ model.adj[v]])
+        for v ∈ 1:model.n
             Rk[v] += model.ω * sum([model.R[idx, k] for idx ∈ model.adj[v]])
         end
         @debug "Rk" Rk
