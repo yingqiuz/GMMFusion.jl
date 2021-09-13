@@ -47,16 +47,16 @@ function create_single_shell(subject::String)
     bvecs = bvecs[:, index]
     bvals = bvals[:, index]
     index .-= 1
-    vols = [subject * "/2mm_single/data" * lpad(k, 4, "0") * ".nii.gz" for k ∈ index]
-    cmd = `fslmerge -t $(subject)/2mm_single/data $(vols)`
+    vols = [subject * "/single/data" * lpad(k, 4, "0") * ".nii.gz" for k ∈ index]
+    cmd = `fslmerge -t $(subject)/single/data $(vols)`
     println(cmd)
     run(cmd)
 
     # save new bvals and bvecs
-    open(subject * "/2mm_single/bvecs", "w") do io
+    open(subject * "/single/bvecs", "w") do io
         writedlm(io, bvecs)
     end
-    open(subject * "/2mm_single/bvals", "w") do io
+    open(subject * "/single/bvals", "w") do io
         writedlm(io, bvals)
     end
 end
@@ -64,7 +64,7 @@ end
 function create_single_shell_less_dir(subject::String, dir::Int=32)
     bvecs_orig = readdlm(subject * "/bvecs", Float32)
     bvals_orig = readdlm(subject * "/bvals", Int)
-    mydir = readdlm(subject * "/2mm_single$(dir)/$(dir)_dirs.txt", Float32)
+    mydir = readdlm(subject * "/single$(dir)/$(dir)_dirs.txt", Float32)
     index = findall(x -> x < 1600, bvals_orig[:])
     bvecs = bvecs_orig[:, index]
     bvals = bvals_orig[:, index]
@@ -84,26 +84,50 @@ function create_single_shell_less_dir(subject::String, dir::Int=32)
     index = sort!(index[vcat(b0index, b1index[newindex])])
     @info "index" index
     #b1index = [b2index[k] for k in 1:length(b1index) if !(k in newindex)]
-    !ispath(subject * "/2mm_single$(dir)") && mkpath(subject * "/2mm_single$(dir)")
-    vols = [subject * "/2mm_single/data" * lpad(k-1, 4, "0") * ".nii.gz" for k ∈ index]
-    cmd = `fslmerge -t $(subject)/2mm_single$(dir)/data $(vols)`
+    !ispath(subject * "/single$(dir)") && mkpath(subject * "/single$(dir)")
+    vols = [subject * "/single/data" * lpad(k-1, 4, "0") * ".nii.gz" for k ∈ index]
+    cmd = `fslmerge -t $(subject)/single$(dir)/data $(vols)`
     println(cmd)
     run(cmd)
     # save new bvals and bvecs
-    open(subject * "/2mm_single$(dir)/bvecs", "w") do io
+    open(subject * "/single$(dir)/bvecs", "w") do io
         writedlm(io, bvecs_orig[:, index])
     end
-    open(subject * "/2mm_single$(dir)/bvals", "w") do io
+    open(subject * "/single$(dir)/bvals", "w") do io
         writedlm(io, bvals_orig[:, index])
     end
 end
 
-function add_noise(subject::String, σ::Float32=1f0)
-    data = niread(subject * "/2mm/data.nii.gz")
-    noise = rand(Rayleigh(σ), size(data.raw)...)
-    data.raw .+= noise
-    !ispath(subject * "/2mm_noise_$(σ)") && mkpath(subject * "/2mm_noise_$(σ)")
-    niwrite(subject * "/2mm_noise_$(σ)/data.nii.gz", data)
+function add_noise(subject::String, r::AbstractVector{Float32})
+    data = niread(subject * "/data.nii.gz")
+    mask = niread(subject * "/nodif_brain_mask.nii.gz")
+    index= findall(x -> x!=0, mask.raw)
+    for σ in r
+        data2 = deepcopy(data)
+        data2.raw[index] .+= rand(Rayleigh(σ), length(index))
+        !ispath(subject * "/noise_$(σ)") && mkpath(subject * "/noise_$(σ)")
+        niwrite(subject * "/noise_$(σ)/data.nii.gz", data2)
+    end
+end
+
+function vim_dice(subject::String, hemi::String, lowq::String)
+    mask = niread(joinpath(subject, "mist_$(hemi)_thalamus_mask.nii.gz"))
+    index = findall(x -> x!=0, mask)
+    vim = niread(joinpath(subject, subject, "segmentation", "$(hemi)_vim.nii.gz")).raw[index]
+    vim_lowq = niread(joinpath(subject, lowq, "segmentation", "$(hemi)_vim.nii.gz")).raw[index]
+    return 2count(vim .== vim_lowq .== 1) / (count(vim .== 1) + count(vim_lowq .== 1))
+end
+
+function vim_dice(subject::String, hemi::String, lowq::AbstractArray{String})
+    mask = niread(joinpath(subject, "mist_$(hemi)_thalamus_mask.nii.gz"))
+    index = findall(x -> x!=0, mask)
+    vim = niread(joinpath(subject, subject, "segmentation", "$(hemi)_vim.nii.gz")).raw[index]
+    dice = zeros(length(lowq))
+    for (k, l) in enumerate(lowq)
+        vim_lowq = niread(joinpath(subject, l, "segmentation", "$(hemi)_vim.nii.gz")).raw[index]
+        dice[k] = 2count(vim .== vim_lowq .== 1) / (count(vim .== 1) + count(vim_lowq .== 1))
+    end
+    return dice
 end
 
 # clustering of thalamus
