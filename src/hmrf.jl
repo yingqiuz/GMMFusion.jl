@@ -8,7 +8,7 @@
     R::AbstractArray{T} = fill(1f0 / K, n, K)
     nk::AbstractArray{T} = vec(sum(R, dims=1))
     μ::AbstractArray{T} = X' * R
-    Σ::AbstractArray = [cholesky!(Hermitian(cov(X) + I * 1f-6))]
+    Σ::AbstractArray = [cholesky!(Hermitian(cov(X) + I * 1f-6)) for k in 1:K]
     ω::T = 10f0 # penalty rate
 end
 
@@ -26,8 +26,8 @@ end
     R::AbstractArray{T} = fill(1f0 / K, n, K)
     nk::AbstractArray{T} = vec(sum(R, dims=1))
     μ::AbstractArray{T} = XL' * R
-    ΣH::AbstractArray = [cholesky!(Hermitian(cov(XH) + I * 1f-6))]
-    ΣL::AbstractArray = [cholesky!(Hermitian(cov(XL) + I * 1f-6))]
+    ΣH::AbstractArray = [cholesky!(Hermitian(cov(XH) + I * 1f-6)) for k in 1:K]
+    ΣL::AbstractArray = [cholesky!(Hermitian(cov(XL) + I * 1f-6)) for k in 1:K]
     ω::T = 10f0 # penalty rate
 end
 
@@ -42,7 +42,7 @@ end
     nk::AbstractArray{T} = vec(sum(R, dims=1))
     seg::AbstractArray{Int} = Flux.onecold(R', 1:K)
     μ::AbstractArray{T} = X' * R
-    Σ::AbstractArray = [cholesky!(Hermitian(cov(X) + I * 1f-6))]
+    Σ::AbstractArray = [cholesky!(Hermitian(cov(X) + I * 1f-6)) for k in 1:K]
     ω::T = 10f0 # penalty rate
 end
 
@@ -61,8 +61,8 @@ end
     nk::AbstractArray{T} = vec(sum(R, dims=1))
     seg::AbstractArray{Int} = Flux.onecold(R', 1:K)
     μ::AbstractArray{T} = XL' * R
-    ΣH::AbstractArray = [cholesky!(Hermitian(cov(XH) + I * 1f-6))]
-    ΣL::AbstractArray = [cholesky!(Hermitian(cov(XL) + I * 1f-6))]
+    ΣH::AbstractArray = [cholesky!(Hermitian(cov(XH) + I * 1f-6)) for k in 1:K]
+    ΣL::AbstractArray = [cholesky!(Hermitian(cov(XL) + I * 1f-6)) for k in 1:K]
     ω::T = 10f0 # penalty rate
 end
 
