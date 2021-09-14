@@ -239,3 +239,80 @@ function segment_mrf(filename::String, thalamus_mask::String, output::String, K:
     #    niwrite(output * "/$(k).nii.gz", mask)
     #end
 end
+
+function vim_segment_read_data(
+    subjects::AbstractVector{String}, hemi::String, K::Int, group::Union{String, Nothing}=nothing
+)
+    nsub = length(subjects)
+    Xall = Vector{Array{Float32}}(undef, nsub)
+    Rall = Vector{Array{Float32}}(undef, nsub)
+    adjall = Vector{Any}(undef, nsub)
+    neighbours = Array{CartesianIndex}(undef, 6)
+    @showprogress for (k, subject) ∈ enumerate(subjects)
+        if group === nothing
+            out = subject
+        else
+            out = group
+        end
+        thalamus = niread(joinpath(subject, "mist_$(hemi)_thalamus_mask.nii.gz"))
+        index = findall(x -> x!=0, thalamus.raw)
+        n = length(index)
+        if isfile(joinpath(subject, out, hemi, "conn2HCPMM1.h5"))
+            X = h5read(joinpath(subject, out, hemi, "conn2HCPMM1.h5"), "conn")
+        else
+            targets = niread(joinpath(subject, "Native", hemi, "stop_1.05_labels.nii.gz")).raw
+            targets = targets[findall(x -> x != 0, targets)]
+            d = length(targets)
+            @info "thalamus/targets dim" n d
+            data = zeros(Float32, n, d)
+            prog = ProgressUnknown("read data...", spinner=true)
+            for line in eachline(joinpath(subject, out, hemi, "fdt_matrix2.dot"))
+                ProgressMeter.next!(prog)
+                x, y, val = split(line, "  ")
+                #@info "line" x y val
+                data[parse(Int, x), parse(Int, y)] = parse(Float32, val)
+            end
+            ProgressMeter.finish!(prog)
+            labels = sort!(unique(targets))
+            X = zeros(Float32, n, length(labels))
+            @showprogress 0.01 "parcellate..." for (l, label) ∈ enumerate(labels)
+                ind = findall(x -> x == label, targets)
+                Xk = view(X, :, l)
+                sum!(Xk, view(data, :, ind))
+                #X[:, k] = sum(data[:, ind], dims=2)
+            end
+            h5open(joinpath(subject, out, hemi, "conn2HCPMM1.h5"), "w") do f
+                write(f, "conn", X, "labels", labels)
+            end
+        end
+        # find adj list
+        adj = Array{Tuple}(undef, n)
+        @inbounds for v ∈ 1:n
+            x, y, z = [index[v][k] for k ∈ 1:3]
+            copyto!(neighbours, [
+                CartesianIndex(x-1, y, z), CartesianIndex(x+1, y, z), 
+                CartesianIndex(x, y-1, z), CartesianIndex(x, y+1, z), 
+                CartesianIndex(x, y, z-1), CartesianIndex(x, y, z+1)
+            ])
+            adj[v] = Tuple(el for el ∈ findall(x -> (x ∈ neighbours), index))
+            @debug "adj[$(v)]" adj[v]
+        end
+        #h5write(filename, "adj", adj)
+        #labels = h5read(filename, "labels")
+        X ./= sum(X, dims=2)
+        X[X .== 0] .= minimum(X[X .!= 0]) * 0.1f0
+        @avx X .= log.(X)
+        @info "X" X
+        @info "isinf.(X)" findall(isinf, X)
+        ## load initial segmentation
+        Rinit = Flux.onehotbatch(
+            niread(
+                joinpath(subject, out, "segmentation/$(hemi)_vim.nii.gz")
+            ).raw[index], 0:K-1
+        )
+        Xall[k] = X
+        Rall[k] = Rinit'
+        adjall[k] = adj
+    end
+    return vcat(Xall...), vcat(Rall...), vcat(adjall...)
+end

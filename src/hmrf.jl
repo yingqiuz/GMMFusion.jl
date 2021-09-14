@@ -114,7 +114,26 @@ function MrfMixGauss!(
     model::Union{MRFBatchSeg{T}, MRFBatch{T}, PairedMRFBatchSeg{T}, PairedMRFBatch{T}};
     tol::T=convert(T, 1f-6), maxiter::Int=10000
 ) where T <: Real
-    MrfMixGauss!([model]; tol=tol, maxiter=maxiter)
+    # likelihood vector
+    L = fill(-Inf32, maxiter)
+    # progress bar
+    prog = ProgressUnknown("Running Markov Random Field Gaussian mixture...", dt=0.1, spinner=true)
+    iter = 1
+    while iter < maxiter
+        iter += 1
+        L[iter] = batch(model)
+        incr = (L[iter] - L[iter-1]) / L[iter-1]
+        ProgressMeter.next!(
+            prog; showvalues = [(:iter, iter-1), (:incr, incr)]
+        )
+        if abs(incr) < tol
+            ProgressMeter.finish!(prog)
+            return model
+        end
+    end
+    ProgressMeter.finish!(prog)
+    iter == maxiter || @warn "Not converged after $(maxiter) steps."
+    return model
 end
 
 function MrfMixGauss!(
