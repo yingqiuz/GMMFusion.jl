@@ -17,7 +17,7 @@ end
     XH::AbstractArray{T}
     XL::AbstractArray{T}
     adj::AbstractArray
-    U::AbstractArray{T} = zeros(T, dh, dl) + I
+    U::AbstractArray{T} = convert(Array{T}, rando(dh))[:, 1:dl]
     index::AbstractArray{Int} = findall(x -> x>1f-3, std(XL, dims=1)[:])
     nh::Int = size(XH, 1)
     dh::Int = size(XH, 2)
@@ -51,7 +51,7 @@ end
     XH::AbstractArray{T}
     XL::AbstractArray{T}
     adj::AbstractArray
-    U::AbstractArray{T} = zeros(T, dh, dl) + I
+    U::AbstractArray{T} = convert(Array{T}, rando(dh))[:, 1:dl]
     index::AbstractArray{Int} = findall(x -> x>1f-3, std(XL, dims=1)[:])
     nh::Int = size(XH, 1)
     dh::Int = size(XH, 2)
@@ -110,11 +110,15 @@ function MrfMixGauss(
     model
 end
 
-"""
-hard parcellation in clique energy
-"""
 function MrfMixGauss!(
-    modelAll::AbstractVector{Union{MRFBatchSeg{T}, MRFBatch{T}, PairedMRFBatchSeg{T}, PairedMRFBatch{T}}};
+    model::Union{MRFBatchSeg{T}, MRFBatch{T}, PairedMRFBatchSeg{T}, PairedMRFBatch{T}};
+    tol::T=convert(T, 1f-6), maxiter::Int=10000
+) where T <: Real
+    MrfMixGauss!([model]; tol=tol, maxiter=maxiter)
+end
+
+function MrfMixGauss!(
+    model::AbstractVector{Union{MRFBatchSeg{T}, MRFBatch{T}, PairedMRFBatchSeg{T}, PairedMRFBatch{T}}};
     tol::T=convert(T, 1f-6), maxiter::Int=10000
 ) where T <: Real
     # likelihood vector
@@ -124,7 +128,7 @@ function MrfMixGauss!(
     iter = 1
     while iter < maxiter
         iter += 1
-        L[iter] = modelAll |> eachrow |> Map(x->batch(x)) |> Broadcasting() |> Folds.sum
+        L[iter] = model |> eachrow |> Map(x -> batch(x)) |> Broadcasting() |> Folds.sum
         incr = (L[iter] - L[iter-1]) / L[iter-1]
         ProgressMeter.next!(
             prog; showvalues = [(:iter, iter-1), (:incr, incr)]

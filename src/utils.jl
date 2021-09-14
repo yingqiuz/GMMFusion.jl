@@ -1,3 +1,5 @@
+rando(d) = qr!(randn(d, d)).Q
+
 # read files and create fconn
 function createfc(
     input::Vector{String}, output::String, seedmask::String, 
