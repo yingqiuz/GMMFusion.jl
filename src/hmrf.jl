@@ -10,7 +10,7 @@
     μ::AbstractArray{T} = X' * R
     Σ::AbstractArray = [cholesky!(Hermitian(cov(X) + I * 1f-6)) for k in 1:K]
     ω::T = 10f0 # penalty rate
-    llh::AbstractArray{T} = fill(convert(T, -Inf32), 100)
+    llh::AbstractArray{T} = fill(-Inf32, 100)
 end
 
 @with_kw mutable struct PairedMRFBatch{T<:Real}
@@ -30,7 +30,7 @@ end
     ΣH::AbstractArray = [cholesky!(Hermitian(cov(XH) + I * 1f-6)) for k in 1:K]
     ΣL::AbstractArray = [cholesky!(Hermitian(cov(XL) + I * 1f-6)) for k in 1:K]
     ω::T = 10f0 # penalty rate
-    llh::AbstractArray{T} = fill(convert(T, -Inf32), 100)
+    llh::AbstractArray{T} = fill(-Inf32, 100)
 end
 
 @with_kw mutable struct MRFBatchSeg{T<:Real}
@@ -46,7 +46,7 @@ end
     μ::AbstractArray{T} = X' * R
     Σ::AbstractArray = [cholesky!(Hermitian(cov(X) + I * 1f-6)) for k in 1:K]
     ω::T = 10f0 # penalty rate
-    llh::AbstractArray{T} = fill(convert(T, -Inf32), 100)
+    llh::AbstractArray{T} = fill(-Inf32, 100)
 end
 
 @with_kw mutable struct PairedMRFBatchSeg{T<:Real}
@@ -67,7 +67,7 @@ end
     ΣH::AbstractArray = [cholesky!(Hermitian(cov(XH) + I * 1f-6)) for k in 1:K]
     ΣL::AbstractArray = [cholesky!(Hermitian(cov(XL) + I * 1f-6)) for k in 1:K]
     ω::T = 10f0 # penalty rate
-    llh::AbstractArray{T} = fill(convert(T, -Inf32), 100)
+    llh::AbstractArray{T} = fill(-Inf32, 100)
 end
 
 """
