@@ -10,6 +10,7 @@
     μ::AbstractArray{T} = X' * R
     Σ::AbstractArray = [cholesky!(Hermitian(cov(X) + I * 1f-6)) for k in 1:K]
     ω::T = 10f0 # penalty rate
+    llh::AbstractArray{T} = fill(convert(T, -Inf32), 100)
 end
 
 @with_kw mutable struct PairedMRFBatch{T<:Real}
@@ -29,6 +30,7 @@ end
     ΣH::AbstractArray = [cholesky!(Hermitian(cov(XH) + I * 1f-6)) for k in 1:K]
     ΣL::AbstractArray = [cholesky!(Hermitian(cov(XL) + I * 1f-6)) for k in 1:K]
     ω::T = 10f0 # penalty rate
+    llh::AbstractArray{T} = fill(convert(T, -Inf32), 100)
 end
 
 @with_kw mutable struct MRFBatchSeg{T<:Real}
@@ -44,6 +46,7 @@ end
     μ::AbstractArray{T} = X' * R
     Σ::AbstractArray = [cholesky!(Hermitian(cov(X) + I * 1f-6)) for k in 1:K]
     ω::T = 10f0 # penalty rate
+    llh::AbstractArray{T} = fill(convert(T, -Inf32), 100)
 end
 
 @with_kw mutable struct PairedMRFBatchSeg{T<:Real}
@@ -64,6 +67,7 @@ end
     ΣH::AbstractArray = [cholesky!(Hermitian(cov(XH) + I * 1f-6)) for k in 1:K]
     ΣL::AbstractArray = [cholesky!(Hermitian(cov(XL) + I * 1f-6)) for k in 1:K]
     ω::T = 10f0 # penalty rate
+    llh::AbstractArray{T} = fill(convert(T, -Inf32), 100)
 end
 
 """
@@ -128,11 +132,13 @@ function MrfMixGauss!(
         )
         if abs(incr) < tol
             ProgressMeter.finish!(prog)
+            model.llh = copy(L[2:iter])
             return model
         end
     end
     ProgressMeter.finish!(prog)
     iter == maxiter || @warn "Not converged after $(maxiter) steps."
+    model.llh = copy(L[2:iter])
     return model
 end
 
@@ -154,11 +160,13 @@ function MrfMixGauss!(
         )
         if abs(incr) < tol
             ProgressMeter.finish!(prog)
+            model.llh = copy(L[2:iter])
             return model
         end
     end
     ProgressMeter.finish!(prog)
     iter == maxiter || @warn "Not converged after $(maxiter) steps."
+    model.llh = copy(L[2:iter])
     return model
 end
 
@@ -285,7 +293,7 @@ function expect!(model::Union{MRFBatchSeg{T}, MRFBatch{T}}, Xo::AbstractArray{T}
         copyto!(Xo, model.X)
         Xo .-= μk'
         copyto!(Rk, diag((Xo / model.Σ[k]) * Xo'))
-        Rk .+= logdet(model.Σ[k])
+        Rk .+= logdet(model.Σ[k]) + model.d * log(2π)
         Rk .*= -0.5f0
         @debug "Rk" Rk
         # log prior
@@ -310,7 +318,7 @@ function expect!(
             x .-= μk'
         end
         copyto!(Rk, diag((XHo / model.ΣH[k]) * XHo' .+ (XLo / model.ΣL[k]) * XLo'))
-        Rk .+= logdet(model.ΣH[k]) .+ logdet(model.ΣL[k])
+        Rk .+= logdet(model.ΣH[k]) .+ logdet(model.ΣL[k]) .+ 2model.d * log(2π)
         Rk .*= -0.5f0
         @debug "Rk" Rk
         logPrior!(Rk, model, k)
