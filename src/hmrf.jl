@@ -301,7 +301,7 @@ function expect!(model::Union{MRFBatchSeg{T}, MRFBatch{T}}, Xo::AbstractArray{T}
         @debug "Rk" Rk
     end
     l = sum(Flux.logsumexp(model.R, dims=2)) / model.n
-    @info "model.R" model.R maximum(model.R)
+    #@info "model.R" model.R maximum(model.R)
     Flux.softmax!(model.R, dims=2)
     return l
 end
