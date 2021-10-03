@@ -74,7 +74,7 @@ end
 Interface - to be changed
 """
 function MrfMixGauss(X::AbstractArray{T}, adj::AbstractArray, K::Int, ω::T=convert(T, 10f0); 
-    tol::T=convert(T, 1f-6), maxiter::Int=10000
+    tol::T=convert(T, 1f-6), maxiter::Int=1000
 ) where T <: Real
     n, d = size(X)
     n == length(adj) || throw(DimensionMismatch("Dimensions of X and adj mismatch."))
@@ -93,7 +93,7 @@ Fusion of HMRF-GMM
 function MrfMixGauss(
     XH::AbstractArray{T}, XL::AbstractArray{T}, adj::AbstractArray, K::Int, 
     R::AbstractArray{T}=fill(1f0/K, size(XH, 1), K), ω::T=convert(T, 10f0); 
-    tol::T=convert(T, 1f-6), maxiter::Int=10000
+    tol::T=convert(T, 1f-6), maxiter::Int=1000
 ) where T <: Real
     nh, dh = size(XH)
     nl, dl = size(XL)
@@ -116,7 +116,7 @@ end
 
 function MrfMixGauss!(
     model::Union{MRFBatchSeg{T}, MRFBatch{T}, PairedMRFBatchSeg{T}, PairedMRFBatch{T}};
-    tol::T=convert(T, 1f-6), maxiter::Int=10000
+    tol::T=convert(T, 1f-6), maxiter::Int=1000
 ) where T <: Real
     # likelihood vector
     L = fill(-Inf32, maxiter)
