@@ -340,7 +340,7 @@ end
 
 function logPrior!(Rk::AbstractArray{T}, model::Union{MRFBatch{T}, PairedMRFBatch{T}}, k::Int) where T <: Real
     for v ∈ 1:model.n
-        Rk[v] += model.ω * sum([R[idx, k] for idx ∈ model.adj[v]])
+        Rk[v] += model.ω * sum([model.R[idx, k] for idx ∈ model.adj[v]])
     end
     #Rk .+= log(model.nk[k]/model.n)
 end
