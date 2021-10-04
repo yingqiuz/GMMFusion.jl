@@ -18,7 +18,7 @@ end
     XH::AbstractArray{T}
     XL::AbstractArray{T}
     adj::AbstractArray
-    U::AbstractArray{T} = qr!(randn(eltype(XH), d, d)).Q[:, 1:dl]
+    U::AbstractArray{T} = qr!(randn(eltype(XH), dh, dh)).Q[:, 1:dl]
     index::AbstractArray{Int} = findall(x -> x>1f-3, std(XL, dims=1)[:])
     nh::Int = size(XH, 1)
     dh::Int = size(XH, 2)
@@ -54,7 +54,7 @@ end
     XH::AbstractArray{T}
     XL::AbstractArray{T}
     adj::AbstractArray
-    U::AbstractArray{T} = qr!(randn(eltype(XH), d, d)).Q[:, 1:dl]
+    U::AbstractArray{T} = qr!(randn(eltype(XH), dh, dh)).Q[:, 1:dl]
     index::AbstractArray{Int} = findall(x -> x>1f-3, std(XL, dims=1)[:])
     nh::Int = size(XH, 1)
     dh::Int = size(XH, 2)
