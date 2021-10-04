@@ -309,7 +309,6 @@ end
 function expect!(
     model::Union{PairedMRFBatch{T}, PairedMRFBatchSeg{T}}, XHo::AbstractArray{T}, XLo::AbstractArray{T}
 ) where T<:Real
-    @info "R" model.R
     @inbounds for k ∈ 1:model.K
         Rk = view(model.R, :, k)
         μk = view(model.μ, :, k)
@@ -321,7 +320,9 @@ function expect!(
             x .-= μk'
         end
         copyto!(Rk, diag((XHo / model.ΣH[k]) * XHo') .+ diag((XLo / model.ΣL[k]) * XLo'))
+        @info "Rk I" Rk
         Rk .+= logdet(model.ΣH[k]) .+ logdet(model.ΣL[k]) .+ (model.dh + model.dl) * log(2π)
+        @info "Rk II" Rk
         Rk .*= -0.5f0
         logPrior!(Rk, model, k)
     end
