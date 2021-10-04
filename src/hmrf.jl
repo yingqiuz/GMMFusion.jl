@@ -254,7 +254,7 @@ function updateμ!(
         ldiv!(cholesky!(LinearAlgebra.inv!(model.ΣH[k]) .+ LinearAlgebra.inv!(model.ΣL[k])), μk)
         @debug "μk" k μk
     end
-    #mul!(model.μ, model.XH', model.R)
+    mul!(model.μ, model.XL', model.R)
     model.μ ./= model.nk'
     model.μ[findall(isnan, model.μ)] .= 0
 end
