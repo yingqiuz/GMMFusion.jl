@@ -255,6 +255,7 @@ function updateμ!(
         @info "μk" k μk
     end
     model.μ ./= model.nk'
+    @info "μ" model.μ
 end
 
 function updateU!(
