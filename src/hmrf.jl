@@ -258,7 +258,7 @@ function updateU!(
 ) where T <: Real
     fill!(model.U, 0)
     @inbounds for k ∈ model.K
-        Rk = view(Rk, :, k)
+        Rk = view(model.R, :, k)
         copyto!(Xo, model.XH)
         Xo .*= sqrt.(Rk)
         model.U .+= transpose(Xo) * Xo
@@ -272,7 +272,7 @@ function updateΣ!(
 ) where T <: Real
     @inbounds for k ∈ model.K
         μk = view(model.μ, :, k)
-        Rk = view(Rk, :, k)
+        Rk = view(model.R, :, k)
         mul!(XHo, model.XH, model.U')
         XHo .-= μk'
         copyto!(XLo, model.XL)
