@@ -250,12 +250,12 @@ function updateμ!(
         rdiv!(XHo, model.ΣH[k])
         rdiv!(XLo, model.ΣL[k])
         mul!(μk, transpose(XHo + XLo), Rk)
-        @info "μk" k μk
+        @debug "μk" k μk
         ldiv!(cholesky!(LinearAlgebra.inv!(model.ΣH[k]) + LinearAlgebra.inv!(model.ΣL[k])), μk)
-        @info "μk" k μk
+        @debug "μk" k μk
     end
     model.μ ./= model.nk'
-    @info "μ" model.μ
+    model.μ[findall(isnan, model.μ)] .= 0
 end
 
 function updateU!(
