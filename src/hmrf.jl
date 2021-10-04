@@ -319,8 +319,7 @@ function expect!(
         map([XHo, XLo]) do x
             x .-= μk'
         end
-        @info "diag" findall(isnan, diag((XHo / model.ΣH[k]) * XHo')) findall(isnan, diag((XLo / model.ΣL[k]) * XLo'))
-        @info "diag" findall(isinf, diag((XHo / model.ΣH[k]) * XHo')) findall(isinf, diag((XLo / model.ΣL[k]) * XLo'))
+        @info "diag" findall(isnan, XHo) findall(isnan, XLo)
         copyto!(Rk, diag((XHo / model.ΣH[k]) * XHo') .+ diag((XLo / model.ΣL[k]) * XLo'))
         @info "Rk I" Rk
         Rk .+= logdet(model.ΣH[k]) .+ logdet(model.ΣL[k]) .+ (model.dh + model.dl) * log(2π)
