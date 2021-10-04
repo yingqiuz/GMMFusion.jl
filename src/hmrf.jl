@@ -232,9 +232,12 @@ function maximise!(
     sum!(model.nk, model.R')
     @debug "model.R" model.R
     # update μ
+    @show "llh" expect!(model, XHo, XLo)
     updateμ!(model, XHo, XLo)
+    @show "llh" expect!(model, XHo, XLo)
     #updateU!(model, XHo)
     updateΣ!(model, XHo, XLo)
+    @show "llh" expect!(model, XHo, XLo)
 end
 
 function updateμ!(
