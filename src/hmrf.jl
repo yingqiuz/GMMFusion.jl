@@ -336,16 +336,12 @@ function expect!(
         Rk = view(model.R, :, k)
         μk = view(model.μ, :, k)
         # Gauss llh
-        mul!(XHo, model.XH, model.U')
         copyto!(XLo, model.XL)
-        # demean
-        map([XHo, XLo]) do x
-            x .-= μk'
-        end
-        @debug "diag" findall(isnan, XHo) findall(isnan, XLo)
-        copyto!(Rk, diag((XHo / model.ΣH[k]) * XHo'))
-        Rk .+= logdet(model.ΣH[k]) .+ (model.dh) * log(2π)
+        XLo .-= μk'
+        copyto!(Rk, diag((XLo / model.ΣL[k]) * XLo'))
+        Rk .+= logdet(model.ΣL[k]) + model.dl * log(2π)
         Rk .*= -0.5f0
+        # log prior
         logPrior!(Rk, model, k)
     end
 
