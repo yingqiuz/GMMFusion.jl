@@ -242,7 +242,7 @@ end
 function updateμ!(
     model::Union{PairedMRFBatchSeg{T}, PairedMRFBatch{T}}, XHo::AbstractArray{T}, XLo::AbstractArray{T}
 ) where T <: Real
-    @inbounds for k ∈ model.K
+    @inbounds for k ∈ 1:model.K
         μk = view(model.μ, :, k)
         Rk = view(model.R, :, k)
         mul!(XHo, model.XH, model.U')
@@ -250,9 +250,9 @@ function updateμ!(
         rdiv!(XHo, model.ΣH[k])
         rdiv!(XLo, model.ΣL[k])
         mul!(μk, transpose(XHo + XLo), Rk)
-        @info "μk" μk
+        @info "μk" k μk
         ldiv!(cholesky!(LinearAlgebra.inv!(model.ΣH[k]) + LinearAlgebra.inv!(model.ΣL[k])), μk)
-        @info "μk" μk
+        @info "μk" k μk
     end
     model.μ ./= model.nk'
 end
