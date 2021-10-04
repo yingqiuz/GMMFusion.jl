@@ -233,7 +233,7 @@ function maximise!(
     @debug "model.R" model.R
     # update μ
     updateμ!(model, XHo, XLo)
-    updateU!(model, XHo)
+    #updateU!(model, XHo)
     updateΣ!(model, XHo, XLo)
 end
 
@@ -319,7 +319,7 @@ function expect!(
         map([XHo, XLo]) do x
             x .-= μk'
         end
-        copyto!(Rk, diag((XHo / model.ΣH[k]) * XHo' .+ (XLo / model.ΣL[k]) * XLo'))
+        copyto!(Rk, diag((XHo / model.ΣH[k]) * XHo') .+ diag((XLo / model.ΣL[k]) * XLo'))
         Rk .+= logdet(model.ΣH[k]) .+ logdet(model.ΣL[k]) .+ (model.dh + model.dl) * log(2π)
         Rk .*= -0.5f0
         @debug "Rk" Rk
