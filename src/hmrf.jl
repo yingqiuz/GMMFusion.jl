@@ -243,7 +243,7 @@ function updateμ!(
     @inbounds for k ∈ model.K
         μk = view(model.μ, :, k)
         Rk = view(model.R, :, k)
-        mul!(XHo, model.XH, U')
+        mul!(XHo, model.XH, model.U')
         copyto!(XLo, model.XL)
         rdiv!(XHo, model.ΣH[k])
         rdiv!(XLo, model.ΣL[k])
