@@ -289,6 +289,14 @@ function updateΣ!(
         model.ΣH[k] = cholesky!(I * 1f-6 + Hermitian((XHo' * XHo) ./ model.nk[k]))
         model.ΣL[k] = cholesky!(I * 1f-6 + Hermitian((XLo' * XLo) ./ model.nk[k]))
     end
+
+    @inbounds for k ∈ 1:model.K
+        copyto!(XLo, model.XL)
+        XLo .-= transpose(view(model.μ, :, k))
+        XLo .*= sqrt.(view(model.R, :, k))
+        model.ΣL[k] = cholesky!(Hermitian(XLo' * XLo ./ model.nk[k]) + I * 1f-5)
+    end
+
 end
 
 function expect!(model::Union{MRFBatchSeg{T}, MRFBatch{T}}, Xo::AbstractArray{T}) where T<:Real
