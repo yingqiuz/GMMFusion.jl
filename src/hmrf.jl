@@ -243,6 +243,13 @@ function maximise!(
         XLo .*= sqrt.(view(model.R, :, k))
         model.ΣL[k] = cholesky!(Hermitian(XLo' * XLo ./ model.nk[k]) + I * 1f-5)
     end
+
+    @inbounds for k ∈ 1:model.K
+        mul!(XHo, model.XH, model.U')
+        XHo .-= transpose(view(model.μ, :, k))
+        XHo .*= sqrt.(view(model.R, :, k))
+        model.ΣH[k] = cholesky!(Hermitian(XHo' * XHo ./ model.nk[k]) + I * 1f-5)
+    end
 end
 
 function updateμ!(
@@ -254,10 +261,10 @@ function updateμ!(
     #    mul!(XHo, model.XH, model.U')
     #    copyto!(XLo, model.XL)
     #    rdiv!(XHo, model.ΣH[k])
-    #    rdiv!(XLo, model.ΣL[k])
-    #    mul!(μk, transpose(XHo + XLo), Rk)
+    #    rmul!(XHo, model.ΣL[k])
+    #    mul!(μk, transpose(XHo .+ XLo), Rk)
     #    @debug "μk" k μk
-    #    ldiv!(cholesky!(LinearAlgebra.inv!(model.ΣH[k]) .+ LinearAlgebra.inv!(model.ΣL[k])), μk)
+    #    ldiv!(cholesky!(model.ΣH[k] \ model.ΣL[k] + I), μk)
     #    @debug "μk" k μk
     #end
     mul!(model.μ, model.XL', model.R)
