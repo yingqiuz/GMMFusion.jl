@@ -18,7 +18,6 @@ end
     XH::AbstractArray{T}
     XL::AbstractArray{T}
     adj::AbstractArray
-    U::AbstractArray{T} = qr!(randn(eltype(XH), dh, dh)).Q[:, 1:dl]
     index::AbstractArray{Int} = findall(x -> x>1f-3, std(XL, dims=1)[:])
     nh::Int = size(XH, 1)
     dh::Int = size(XH, 2)
@@ -29,6 +28,7 @@ end
     μ::AbstractArray{T} = XL' * R
     ΣH::AbstractArray = [cholesky!(Hermitian(cov(XH) + I * 1f-6)) for k in 1:K]
     ΣL::AbstractArray = [cholesky!(Hermitian(cov(XL) + I * 1f-6)) for k in 1:K]
+    U::AbstractArray{T} = qr!(randn(eltype(XH), dh, dh)).Q[:, 1:dl]
     ω::T = convert(eltype(XH), 10f0) # penalty rate
     llh::AbstractArray{T} = convert(Array{eltype(XH)}, fill(-Inf32, 10))
 end
@@ -54,7 +54,6 @@ end
     XH::AbstractArray{T}
     XL::AbstractArray{T}
     adj::AbstractArray
-    U::AbstractArray{T} = qr!(randn(eltype(XH), dh, dh)).Q[:, 1:dl]
     index::AbstractArray{Int} = findall(x -> x>1f-3, std(XL, dims=1)[:])
     nh::Int = size(XH, 1)
     dh::Int = size(XH, 2)
@@ -66,6 +65,7 @@ end
     μ::AbstractArray{T} = XL' * R
     ΣH::AbstractArray = [cholesky!(Hermitian(cov(XH) + I * 1f-6)) for k in 1:K]
     ΣL::AbstractArray = [cholesky!(Hermitian(cov(XL) + I * 1f-6)) for k in 1:K]
+    U::AbstractArray{T} = qr!(randn(eltype(XH), dh, dh)).Q[:, 1:dl]
     ω::T = convert(eltype(XH), 10f0) # penalty rate
     llh::AbstractArray{T} = convert(Array{eltype(XH)}, fill(-Inf32, 10))
 end
