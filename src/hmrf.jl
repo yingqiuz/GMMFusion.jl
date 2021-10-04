@@ -250,7 +250,9 @@ function updateμ!(
         rdiv!(XHo, model.ΣH[k])
         rdiv!(XLo, model.ΣL[k])
         mul!(μk, transpose(XHo + XLo), Rk)
+        @info "μk" μk
         ldiv!(cholesky!(LinearAlgebra.inv!(model.ΣH[k]) + LinearAlgebra.inv!(model.ΣL[k])), μk)
+        @info "μk" μk
     end
     model.μ ./= model.nk'
 end
@@ -319,19 +321,17 @@ function expect!(
         map([XHo, XLo]) do x
             x .-= μk'
         end
-        @info "μk" μk
-        @info "diag" findall(isnan, XHo) findall(isnan, XLo)
+        @debug "μk" μk
+        @debug "diag" findall(isnan, XHo) findall(isnan, XLo)
         copyto!(Rk, diag((XHo / model.ΣH[k]) * XHo') .+ diag((XLo / model.ΣL[k]) * XLo'))
-        @info "Rk I" Rk
         Rk .+= logdet(model.ΣH[k]) .+ logdet(model.ΣL[k]) .+ (model.dh + model.dl) * log(2π)
-        @info "Rk II" Rk
         Rk .*= -0.5f0
         logPrior!(Rk, model, k)
     end
-    @info "R" model.R
+    @debug "R" model.R
     l = sum(Flux.logsumexp(model.R, dims=2)) / model.n
     Flux.softmax!(model.R, dims=2)
-    @info "R" model.R
+    @debug "R" model.R
     return l
 end
 
