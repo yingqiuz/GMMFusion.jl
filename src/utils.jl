@@ -1,5 +1,23 @@
 using Base: get_compiletime_preferences
-rando(d) = qr!(randn(d, d)).Q
+rando(d) = qr!(randn(Float32, d, d)).Q
+
+# Fisher's Linear discriminant
+function fda(X, y, q)
+	n, d = size(X)
+	n == size(y, 1) || throw(DimensionMismatch("Dimensions of X and y mismatch."))
+	K = length(unique(y))
+	R = [y[nn] == kk-1 ? 1 : 0 for nn in 1:n, kk in 1:K]
+	nk = sum(R, dims=1)
+	m = mean(X', dims=2)
+	C = cov(X)
+	mk = X' * R ./ nk
+	mo = (mk .- m) .* sqrt.(nk ./ n)
+	vals, vecs = eigen(mo * mo', C)
+	i = sortperm(-vals)
+	vecs = vecs[:, i]
+	vecs ./= sum(vecs.^ 2, dims=1)
+	return vecs[:, 1:q]
+end
 
 # read files and create fconn
 function createfc(
