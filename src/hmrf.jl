@@ -231,12 +231,12 @@ function maximise!(
     # posterior parameters
     sum!(model.nk, model.R')
     # update μ
-    @info "llh" expect!(model, XHo, XLo)
+    @debug "llh" expect!(model, XHo, XLo)
     updateμ!(model, XHo, XLo)
-    @info "llh" expect!(model, XHo, XLo)
+    @debug "llh" expect!(model, XHo, XLo)
     #updateU!(model, XHo)
     updateΣ!(model, XHo, XLo)
-    @info "llh" expect!(model, XHo, XLo)
+    @debug "llh" expect!(model, XHo, XLo)
 end
 
 function updateμ!(
@@ -251,9 +251,10 @@ function updateμ!(
         rdiv!(XLo, model.ΣL[k])
         mul!(μk, transpose(XHo + XLo), Rk)
         @debug "μk" k μk
-        ldiv!(cholesky!(LinearAlgebra.inv!(model.ΣH[k]) + LinearAlgebra.inv!(model.ΣL[k])), μk)
+        ldiv!(cholesky!(LinearAlgebra.inv!(model.ΣH[k]) .+ LinearAlgebra.inv!(model.ΣL[k])), μk)
         @debug "μk" k μk
     end
+    mul!(model.μ, model.XH', model.R)
     model.μ ./= model.nk'
     model.μ[findall(isnan, model.μ)] .= 0
 end
@@ -322,7 +323,6 @@ function expect!(
         map([XHo, XLo]) do x
             x .-= μk'
         end
-        @debug "μk" μk
         @debug "diag" findall(isnan, XHo) findall(isnan, XLo)
         copyto!(Rk, diag((XHo / model.ΣH[k]) * XHo') .+ diag((XLo / model.ΣL[k]) * XLo'))
         Rk .+= logdet(model.ΣH[k]) .+ logdet(model.ΣL[k]) .+ (model.dh + model.dl) * log(2π)
