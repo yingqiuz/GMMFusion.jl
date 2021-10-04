@@ -315,22 +315,22 @@ end
 function expect!(
     model::Union{PairedMRFBatch{T}, PairedMRFBatchSeg{T}}, XHo::AbstractArray{T}, XLo::AbstractArray{T}
 ) where T<:Real
-    @inbounds for k ∈ 1:model.K
-        Rk = view(model.R, :, k)
-        μk = view(model.μ, :, k)
-        # Gauss llh
-        mul!(XHo, model.XH, model.U')
-        copyto!(XLo, model.XL)
-        # demean
-        map([XHo, XLo]) do x
-            x .-= μk'
-        end
-        @debug "diag" findall(isnan, XHo) findall(isnan, XLo)
-        copyto!(Rk, diag((XHo / model.ΣH[k]) * XHo') .+ diag((XLo / model.ΣL[k]) * XLo'))
-        Rk .+= logdet(model.ΣH[k]) .+ logdet(model.ΣL[k]) .+ (model.dh + model.dl) * log(2π)
-        Rk .*= -0.5f0
-        logPrior!(Rk, model, k)
-    end
+    #@inbounds for k ∈ 1:model.K
+    #    Rk = view(model.R, :, k)
+    #    μk = view(model.μ, :, k)
+    #    # Gauss llh
+    #    mul!(XHo, model.XH, model.U')
+    #    copyto!(XLo, model.XL)
+    #    # demean
+    #    map([XHo, XLo]) do x
+    #        x .-= μk'
+    #    end
+    #    @debug "diag" findall(isnan, XHo) findall(isnan, XLo)
+    #    copyto!(Rk, diag((XHo / model.ΣH[k]) * XHo') .+ diag((XLo / model.ΣL[k]) * XLo'))
+    #    Rk .+= logdet(model.ΣH[k]) .+ logdet(model.ΣL[k]) .+ (model.dh + model.dl) * log(2π)
+    #    Rk .*= -0.5f0
+    #    logPrior!(Rk, model, k)
+    #end
 
     @inbounds for k ∈ 1:model.K
         Rk = view(model.R, :, k)
