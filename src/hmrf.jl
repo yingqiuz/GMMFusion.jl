@@ -230,14 +230,13 @@ function maximise!(
 ) where T <: Real
     # posterior parameters
     sum!(model.nk, model.R')
-    @debug "model.R" model.R
     # update μ
-    @show "llh" expect!(model, XHo, XLo)
+    @info "llh" expect!(model, XHo, XLo)
     updateμ!(model, XHo, XLo)
-    @show "llh" expect!(model, XHo, XLo)
+    @info "llh" expect!(model, XHo, XLo)
     #updateU!(model, XHo)
     updateΣ!(model, XHo, XLo)
-    @show "llh" expect!(model, XHo, XLo)
+    @info "llh" expect!(model, XHo, XLo)
 end
 
 function updateμ!(
@@ -283,8 +282,8 @@ function updateΣ!(
         map([XHo, XLo]) do x
             x .*= sqrt.(Rk)
         end
-        model.ΣH[k] = cholesky!(Hermitian(I * 1f-6 + (XHo' * XHo) ./ model.nk[k]))
-        model.ΣL[k] = cholesky!(Hermitian(I * 1f-6 + (XLo' * XLo) ./ model.nk[k]))
+        model.ΣH[k] = cholesky!(I * 1f-6 + Hermitian((XHo' * XHo) ./ model.nk[k]))
+        model.ΣL[k] = cholesky!(I * 1f-6 + Hermitian((XLo' * XLo) ./ model.nk[k]))
     end
 end
 
@@ -298,10 +297,8 @@ function expect!(model::Union{MRFBatchSeg{T}, MRFBatch{T}}, Xo::AbstractArray{T}
         copyto!(Rk, diag((Xo / model.Σ[k]) * Xo'))
         Rk .+= logdet(model.Σ[k]) + model.d * log(2π)
         Rk .*= -0.5f0
-        @debug "Rk" Rk
         # log prior
         logPrior!(Rk, model, k)
-        @debug "Rk" Rk
     end
     l = sum(Flux.logsumexp(model.R, dims=2)) / model.n
     #@info "model.R" model.R maximum(model.R)
@@ -312,6 +309,7 @@ end
 function expect!(
     model::Union{PairedMRFBatch{T}, PairedMRFBatchSeg{T}}, XHo::AbstractArray{T}, XLo::AbstractArray{T}
 ) where T<:Real
+    @info "R" model.R
     @inbounds for k ∈ 1:model.K
         Rk = view(model.R, :, k)
         μk = view(model.μ, :, k)
@@ -325,12 +323,12 @@ function expect!(
         copyto!(Rk, diag((XHo / model.ΣH[k]) * XHo') .+ diag((XLo / model.ΣL[k]) * XLo'))
         Rk .+= logdet(model.ΣH[k]) .+ logdet(model.ΣL[k]) .+ (model.dh + model.dl) * log(2π)
         Rk .*= -0.5f0
-        @debug "Rk" Rk
         logPrior!(Rk, model, k)
-        @debug "Rk" Rk
     end
+    @info "R" model.R
     l = sum(Flux.logsumexp(model.R, dims=2)) / model.n
     Flux.softmax!(model.R, dims=2)
+    @info "R" model.R
     return l
 end
 
