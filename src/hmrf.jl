@@ -254,7 +254,7 @@ function updateμ!(
         ldiv!(cholesky!(LinearAlgebra.inv!(model.ΣH[k]) .+ LinearAlgebra.inv!(model.ΣL[k])), μk)
         @debug "μk" k μk
     end
-    mul!(model.μ, model.XH', model.R)
+    #mul!(model.μ, model.XH', model.R)
     model.μ ./= model.nk'
     model.μ[findall(isnan, model.μ)] .= 0
 end
@@ -304,9 +304,11 @@ function expect!(model::Union{MRFBatchSeg{T}, MRFBatch{T}}, Xo::AbstractArray{T}
         # log prior
         logPrior!(Rk, model, k)
     end
+    @info "R" model.R
     l = sum(Flux.logsumexp(model.R, dims=2)) / model.n
     #@info "model.R" model.R maximum(model.R)
     Flux.softmax!(model.R, dims=2)
+    @info "R" model.R
     return l
 end
 
@@ -329,10 +331,10 @@ function expect!(
         Rk .*= -0.5f0
         logPrior!(Rk, model, k)
     end
-    @debug "R" model.R
+    @info "R" model.R
     l = sum(Flux.logsumexp(model.R, dims=2)) / model.n
     Flux.softmax!(model.R, dims=2)
-    @debug "R" model.R
+    @info "R" model.R
     return l
 end
 
