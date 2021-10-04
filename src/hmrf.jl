@@ -320,7 +320,7 @@ function expect!(
             x .-= μk'
         end
         copyto!(Rk, diag((XHo / model.ΣH[k]) * XHo' .+ (XLo / model.ΣL[k]) * XLo'))
-        Rk .+= logdet(model.ΣH[k]) .+ logdet(model.ΣL[k]) .+ 2model.d * log(2π)
+        Rk .+= logdet(model.ΣH[k]) .+ logdet(model.ΣL[k]) .+ (model.dh + model.dl) * log(2π)
         Rk .*= -0.5f0
         @debug "Rk" Rk
         logPrior!(Rk, model, k)
