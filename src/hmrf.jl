@@ -9,8 +9,8 @@
     nk::AbstractArray{T} = vec(sum(R, dims=1))
     μ::AbstractArray{T} = X' * R
     Σ::AbstractArray = [cholesky!(Hermitian(cov(X) + I * 1f-6)) for k in 1:K]
-    ω::T = 10f0 # penalty rate
-    llh::AbstractArray{T} = fill(-Inf32, 100)
+    ω::T = convert(eltype(X), 10f0) # penalty rate
+    llh::AbstractArray{T} = convert(Array{eltype(X)}, fill(-Inf32, 10))
 end
 
 @with_kw mutable struct PairedMRFBatch{T<:Real}
@@ -18,7 +18,7 @@ end
     XH::AbstractArray{T}
     XL::AbstractArray{T}
     adj::AbstractArray
-    U::AbstractArray{T} = convert(Array{T}, rando(dh))[:, 1:dl]
+    U::AbstractArray{T} = convert(Array{eltype(XH)}, rando(dh))[:, 1:dl]
     index::AbstractArray{Int} = findall(x -> x>1f-3, std(XL, dims=1)[:])
     nh::Int = size(XH, 1)
     dh::Int = size(XH, 2)
@@ -29,8 +29,8 @@ end
     μ::AbstractArray{T} = XL' * R
     ΣH::AbstractArray = [cholesky!(Hermitian(cov(XH) + I * 1f-6)) for k in 1:K]
     ΣL::AbstractArray = [cholesky!(Hermitian(cov(XL) + I * 1f-6)) for k in 1:K]
-    ω::T = 10f0 # penalty rate
-    llh::AbstractArray{T} = fill(-Inf32, 100)
+    ω::T = convert(eltype(XH), 10f0) # penalty rate
+    llh::AbstractArray{T} = convert(Array{eltype(XH)}, fill(-Inf32, 10))
 end
 
 @with_kw mutable struct MRFBatchSeg{T<:Real}
@@ -45,8 +45,8 @@ end
     seg::AbstractArray{Int} = Flux.onecold(R', 1:K)
     μ::AbstractArray{T} = X' * R
     Σ::AbstractArray = [cholesky!(Hermitian(cov(X) + I * 1f-6)) for k in 1:K]
-    ω::T = 10f0 # penalty rate
-    llh::AbstractArray{T} = fill(-Inf32, 100)
+    ω::T = convert(eltype(X), 10f0) # penalty rate
+    llh::AbstractArray{T} = convert(Array{eltype(X)}, fill(-Inf32, 10))
 end
 
 @with_kw mutable struct PairedMRFBatchSeg{T<:Real}
@@ -54,7 +54,7 @@ end
     XH::AbstractArray{T}
     XL::AbstractArray{T}
     adj::AbstractArray
-    U::AbstractArray{T} = convert(Array{T}, rando(dh))[:, 1:dl]
+    U::AbstractArray{T} = convert(Array{eltype(XH)}, rando(dh))[:, 1:dl]
     index::AbstractArray{Int} = findall(x -> x>1f-3, std(XL, dims=1)[:])
     nh::Int = size(XH, 1)
     dh::Int = size(XH, 2)
@@ -66,8 +66,8 @@ end
     μ::AbstractArray{T} = XL' * R
     ΣH::AbstractArray = [cholesky!(Hermitian(cov(XH) + I * 1f-6)) for k in 1:K]
     ΣL::AbstractArray = [cholesky!(Hermitian(cov(XL) + I * 1f-6)) for k in 1:K]
-    ω::T = 10f0 # penalty rate
-    llh::AbstractArray{T} = fill(-Inf32, 100)
+    ω::T = convert(eltype(XH), 10f0) # penalty rate
+    llh::AbstractArray{T} = convert(Array{eltype(XH)}, fill(-Inf32, 10))
 end
 
 """
