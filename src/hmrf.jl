@@ -231,12 +231,9 @@ function maximise!(
     # posterior parameters
     sum!(model.nk, model.R')
     # update μ
-    @debug "llh" expect!(model, XHo, XLo)
     updateμ!(model, XHo, XLo)
-    @debug "llh" expect!(model, XHo, XLo)
     #updateU!(model, XHo)
     updateΣ!(model, XHo, XLo)
-    @debug "llh" expect!(model, XHo, XLo)
 end
 
 function updateμ!(
