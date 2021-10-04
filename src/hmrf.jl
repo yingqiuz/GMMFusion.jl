@@ -248,18 +248,18 @@ end
 function updateμ!(
     model::Union{PairedMRFBatchSeg{T}, PairedMRFBatch{T}}, XHo::AbstractArray{T}, XLo::AbstractArray{T}
 ) where T <: Real
-    @inbounds for k ∈ 1:model.K
-        μk = view(model.μ, :, k)
-        Rk = view(model.R, :, k)
-        mul!(XHo, model.XH, model.U')
-        copyto!(XLo, model.XL)
-        rdiv!(XHo, model.ΣH[k])
-        rdiv!(XLo, model.ΣL[k])
-        mul!(μk, transpose(XHo + XLo), Rk)
-        @debug "μk" k μk
-        ldiv!(cholesky!(LinearAlgebra.inv!(model.ΣH[k]) .+ LinearAlgebra.inv!(model.ΣL[k])), μk)
-        @debug "μk" k μk
-    end
+    #@inbounds for k ∈ 1:model.K
+    #    μk = view(model.μ, :, k)
+    #    Rk = view(model.R, :, k)
+    #    mul!(XHo, model.XH, model.U')
+    #    copyto!(XLo, model.XL)
+    #    rdiv!(XHo, model.ΣH[k])
+    #    rdiv!(XLo, model.ΣL[k])
+    #    mul!(μk, transpose(XHo + XLo), Rk)
+    #    @debug "μk" k μk
+    #    ldiv!(cholesky!(LinearAlgebra.inv!(model.ΣH[k]) .+ LinearAlgebra.inv!(model.ΣL[k])), μk)
+    #    @debug "μk" k μk
+    #end
     mul!(model.μ, model.XL', model.R)
     model.μ ./= model.nk'
     model.μ[findall(isnan, model.μ)] .= 0
