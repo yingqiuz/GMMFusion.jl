@@ -19,7 +19,7 @@ end
     XL::AbstractArray{T}
     adj::AbstractArray
     index::AbstractArray{Int} = findall(x -> x>1f-3, std(XL, dims=1)[:])
-    nh::Int = size(XH, 1)
+    n::Int = size(XH, 1)
     dh::Int = size(XH, 2)
     nl::Int = size(XL, 1)
     dl::Int = size(XL, 2)
@@ -55,7 +55,7 @@ end
     XL::AbstractArray{T}
     adj::AbstractArray
     index::AbstractArray{Int} = findall(x -> x>1f-3, std(XL, dims=1)[:])
-    nh::Int = size(XH, 1)
+    n::Int = size(XH, 1)
     dh::Int = size(XH, 2)
     nl::Int = size(XL, 1)
     dl::Int = size(XL, 2) 
