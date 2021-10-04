@@ -231,9 +231,18 @@ function maximise!(
     # posterior parameters
     sum!(model.nk, model.R')
     # update μ
-    updateμ!(model, XHo, XLo)
+    #updateμ!(model, XHo, XLo)
     #updateU!(model, XHo)
-    updateΣ!(model, XHo, XLo)
+    #updateΣ!(model, XHo, XLo)
+    mul!(model.μ, model.XL', model.R)
+    model.μ ./= model.nk'
+    # update Σ
+    @inbounds for k ∈ 1:model.K
+        copyto!(XLo, model.XL)
+        XLo .-= transpose(view(model.μ, :, k))
+        XLo .*= sqrt.(view(model.R, :, k))
+        model.ΣL[k] = cholesky!(Hermitian(XLo' * XLo ./ model.nk[k]) + I * 1f-5)
+    end
 end
 
 function updateμ!(
