@@ -231,11 +231,11 @@ function maximise!(
     # posterior parameters
     sum!(model.nk, model.R')
     # update μ
-    #updateμ!(model, XHo, XLo)
+    updateμ!(model, XHo, XLo)
     #updateU!(model, XHo)
     #updateΣ!(model, XHo, XLo)
-    mul!(model.μ, model.XL', model.R)
-    model.μ ./= model.nk'
+    #mul!(model.μ, model.XL', model.R)
+    #model.μ ./= model.nk'
     # update Σ
     @inbounds for k ∈ 1:model.K
         copyto!(XLo, model.XL)
