@@ -261,10 +261,11 @@ function updateμ!(
         mul!(XHo, model.XH, model.U')
         copyto!(XLo, model.XL)
         rdiv!(XHo, model.ΣH[k])
-        rmul!(XHo, model.ΣL[k])
+        rmul!(XHo, model.ΣL[k].U')
+        rmul!(XHo, model.ΣL[k].U)
         mul!(μk, transpose(XHo .+ XLo), Rk)
         @debug "μk" k μk
-        ldiv!(cholesky!(model.ΣH[k] \ model.ΣL[k] + I), μk)
+        ldiv!(cholesky!((model.ΣL[k].U' * model.ΣL[k].U) / model.ΣH[k] + I), μk)
         @debug "μk" k μk
     end
     #mul!(model.μ, model.XL', model.R)
