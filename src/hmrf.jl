@@ -331,6 +331,24 @@ function expect!(
         Rk .*= -0.5f0
         logPrior!(Rk, model, k)
     end
+
+    @inbounds for k ∈ 1:model.K
+        Rk = view(model.R, :, k)
+        μk = view(model.μ, :, k)
+        # Gauss llh
+        mul!(XHo, model.XH, model.U')
+        copyto!(XLo, model.XL)
+        # demean
+        map([XHo, XLo]) do x
+            x .-= μk'
+        end
+        @debug "diag" findall(isnan, XHo) findall(isnan, XLo)
+        copyto!(Rk, diag((XHo / model.ΣH[k]) * XHo'))
+        Rk .+= logdet(model.ΣH[k]) .+ (model.dh) * log(2π)
+        Rk .*= -0.5f0
+        logPrior!(Rk, model, k)
+    end
+
     @info "R" model.R
     l = sum(Flux.logsumexp(model.R, dims=2)) / model.n
     Flux.softmax!(model.R, dims=2)
