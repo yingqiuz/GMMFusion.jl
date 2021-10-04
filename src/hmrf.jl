@@ -248,7 +248,7 @@ function updateμ!(
         rdiv!(XHo, model.ΣH[k])
         rdiv!(XLo, model.ΣL[k])
         mul!(μk, transpose(XHo + XLo), Rk)
-        ldiv!(cholesky!(LinearAlgebra.inv!(ΣH[k]) + LinearAlgebra.inv!(ΣL[k])), μk)
+        ldiv!(cholesky!(LinearAlgebra.inv!(model.ΣH[k]) + LinearAlgebra.inv!(model.ΣL[k])), μk)
     end
     model.μ ./= model.nk'
 end
@@ -261,10 +261,10 @@ function updateU!(
         Rk = view(Rk, :, k)
         copyto!(Xo, model.XH)
         Xo .*= sqrt.(Rk)
-        U .+= transpose(Xo) * Xo
+        model.U .+= transpose(Xo) * Xo
     end
-    u, _, v = svd!(μ * transpose(R) * model.XH * U)
-    mul!(U, u, v')
+    u, _, v = svd!(μ * transpose(R) * model.XH * model.U)
+    mul!(model.U, u, v')
 end
 
 function updateΣ!(
@@ -273,7 +273,7 @@ function updateΣ!(
     @inbounds for k ∈ model.K
         μk = view(model.μ, :, k)
         Rk = view(Rk, :, k)
-        mul!(XHo, model.XH, U')
+        mul!(XHo, model.XH, model.U')
         XHo .-= μk'
         copyto!(XLo, model.XL)
         XLo .-= μk'
