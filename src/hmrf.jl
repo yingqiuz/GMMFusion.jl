@@ -263,7 +263,7 @@ function updateU!(
         Xo .*= sqrt.(Rk)
         model.U .+= transpose(Xo) * Xo
     end
-    u, _, v = svd!(μ * transpose(model.R) * model.XH * model.U)
+    u, _, v = svd!(model.μ * transpose(model.R) * model.XH * model.U)
     mul!(model.U, u, v')
 end
 
