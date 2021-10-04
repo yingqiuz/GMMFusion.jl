@@ -193,7 +193,7 @@ function batch(model::PairedMRFBatch{T}) where T <: Real
     # M step
     maximise!(model, XHo, XLo)
     # E step
-    expect!(model, Xo)
+    expect!(model, XHo, XLo)
 end
 
 function batch(model::PairedMRFBatchSeg{T}) where T <: Real
@@ -203,7 +203,7 @@ function batch(model::PairedMRFBatchSeg{T}) where T <: Real
     maximise!(model, XHo, XLo)
     # E step
     segment!(model)
-    expect!(model, Xo)
+    expect!(model, XHo, XLo)
 end
 
 function maximise!(
