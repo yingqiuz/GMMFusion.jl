@@ -313,7 +313,7 @@ function expect!(
         Rk = view(model.R, :, k)
         μk = view(model.μ, :, k)
         # Gauss llh
-        mul!(XHo, model.XH, U')
+        mul!(XHo, model.XH, model.U')
         copyto!(XLo, model.XL)
         # demean
         map([XHo, XLo]) do x
