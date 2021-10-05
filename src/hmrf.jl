@@ -265,7 +265,7 @@ function updateμ!(
         rmul!(XHo, model.ΣL[k].U)
         mul!(μk, transpose(XHo .+ XLo), Rk)
         @debug "μk" k μk
-        ldiv!(cholesky!((model.ΣL[k].U' * model.ΣL[k].U) / model.ΣH[k] + I), μk)
+        ldiv!(cholesky!(Hermitian((model.ΣL[k].U' * model.ΣL[k].U) / model.ΣH[k]) + I), μk)
         @debug "μk" k μk
     end
     #mul!(model.μ, model.XL', model.R)
