@@ -1,3 +1,93 @@
+@with_kw mutable struct GMMBatch{T<:Real}
+    K::Int
+    X::AbstractArray{T}
+    index::AbstractArray{Int} = findall(x -> x>1f-3, std(X, dims=1)[:])
+    n::Int = size(X, 1)
+    d::Int = size(X, 2)
+    R::AbstractArray{T} = fill(1f0 / K, n, K)
+    nk::AbstractArray{T} = vec(sum(R, dims=1))
+    w::AbstractArray{T} = nk ./ n
+    μ::AbstractArray{T} = X' * R
+    Σ::AbstractArray = [cholesky!(Hermitian(cov(X) + I * 1f-6)) for k in 1:K]
+    llh::AbstractArray{T} = convert(Array{eltype(X)}, fill(-Inf32, 10))
+    llhmap::AbstractArray{T} = zeros(eltype(X), n, K)
+end
+
+function MixGauss!(
+    model::GMMBatch{T}; tol::T=convert(T, 1f-6), maxiter::Int=1000
+) where T <: Real
+    # likelihood vector
+    L = fill(-Inf32, maxiter)
+    # progress bar
+    prog = ProgressUnknown("Running Gaussian mixture model...", dt=0.1, spinner=true)
+    iter = 1
+    Xo = deepcopy(model.X)
+    while iter < maxiter
+        iter += 1
+        L[iter] = batch(model, Xo)
+        incr = (L[iter] - L[iter-1]) / L[iter-1]
+        ProgressMeter.next!(
+            prog; showvalues = [(:iter, iter-1), (:incr, incr)]
+        )
+        if abs(incr) < tol
+            ProgressMeter.finish!(prog)
+            model.llh = copy(L[2:iter])
+            return model
+        end
+    end
+    ProgressMeter.finish!(prog)
+    iter == maxiter || @warn "Not converged after $(maxiter) steps."
+    model.llh = copy(L[2:iter])
+    return model
+end
+
+function batch(model::GMMBatch{T}, Xo::AbstractArray{T}) where T <: Real
+    # M step
+    maximise!(model, Xo)
+    # E step
+    expect!(model, Xo)
+end
+
+function maximise!(
+    model::GMMBatch{T}, Xo
+) where T <: Real
+    # posterior parameters
+    sum!(model.nk, model.R')
+    copyto!(model.w, model.nk ./ model.n)
+    @debug "model.R" model.R
+    # update μ
+    mul!(model.μ, model.X', model.R)
+    model.μ ./= model.nk'
+    # update Σ
+    @inbounds for k ∈ 1:model.K
+        copyto!(Xo, model.X)
+        Xo .-= transpose(view(model.μ, :, k))
+        Xo .*= sqrt.(view(model.R, :, k))
+        model.Σ[k] = cholesky!(Hermitian(Xo' * Xo ./ model.nk[k]) + I * 1f-5)
+    end
+end
+
+function expect!(model::GMMBatch{T}, Xo::AbstractArray{T}) where T<:Real
+    @inbounds for k ∈ 1:model.K
+        Rk = view(model.R, :, k)
+        μk = view(model.μ, :, k)
+        # Gauss llh
+        copyto!(Xo, model.X)
+        Xo .-= μk'
+        copyto!(Rk, diag((Xo / model.Σ[k]) * Xo'))
+        Rk .+= logdet(model.Σ[k]) + model.d * log(2π)
+    end
+    model.R .*= -0.5f0
+    model.R .+= @avx log.(model.w')
+    @debug "R" model.R
+    #copyto!(model.llhmap, Flux.logsumexp(model.R, dims=2))
+    l = sum(Flux.logsumexp(model.R, dims=2)) / model.n
+    #@info "model.R" model.R maximum(model.R)
+    Flux.softmax!(model.R, dims=2)
+    @debug "R" model.R
+    return l
+end
+
 function predict(
     model::GMM{T}, 
     Xtest::AbstractArray{T}
