@@ -49,7 +49,7 @@ function batch(model::GMMBatch{T}, Xo::AbstractArray{T}) where T <: Real
 end
 
 function maximise!(
-    model::GMMBatch{T}, Xo
+    model::GMMBatch{T}, Xo::AbstractArray{T}
 ) where T <: Real
     # posterior parameters
     sum!(model.nk, model.R')
