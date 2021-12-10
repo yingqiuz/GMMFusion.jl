@@ -12,6 +12,7 @@ using SpecialFunctions
 import Flux
 
 export EM, EM!, GMM, FusedGMM, predict, MrfMixGauss, MrfMixGauss!, MRFBatch, MRFBatchSeg, expect!, rando
+export MixGauss!, GMMBatch
 
 struct GMM{T<:Real}
     K::Int
