@@ -11,6 +11,8 @@
     Σ::AbstractArray = [cholesky!(Hermitian(cov(X) + I * 1f-6)) for k in 1:K]
     ω::T = convert(eltype(X), 10f0) # penalty rate
     llh::AbstractArray{T} = convert(Array{eltype(X)}, fill(-Inf32, 10))
+    kernel::Function = (foo(x, y) = exp( -sum((x .- y) .^ 2)/(2f0 * ω^2) ))
+    f::AbstractArray = [[kernel(X[idx, :], X[kk, :]) for idx ∈ el] for (kk, el) ∈ enumerate(adj)]
 end
 
 @with_kw mutable struct PairedMRFBatch{T<:Real}
@@ -47,6 +49,8 @@ end
     Σ::AbstractArray = [cholesky!(Hermitian(cov(X) + I * 1f-6)) for k in 1:K]
     ω::T = convert(eltype(X), 10f0) # penalty rate
     llh::AbstractArray{T} = convert(Array{eltype(X)}, fill(-Inf32, 10))
+    kernel::Function = (foo(x, y) = exp( -sum((x .- y) .^ 2)/(2f0 * ω^2) ))
+    f::AbstractArray = [[kernel(X[idx, :], X[kk, :]) for idx ∈ el] for (kk, el) ∈ enumerate(adj)]
 end
 
 @with_kw mutable struct PairedMRFBatchSeg{T<:Real}
@@ -378,7 +382,8 @@ end
 
 function logPrior!(Rk::AbstractArray{T}, model::Union{MRFBatchSeg{T}, PairedMRFBatchSeg{T}}, k::Int) where T <: Real
     for v ∈ 1:model.n
-        Rk[v] += -model.ω * sum([model.seg[idx] != k for idx in model.adj[v]])
+        Rk[v] -= sum([(model.seg[idx] != k) * model.f[idx] for idx in model.adj[v]])
+        # Rk[v] -= sum( (model.seg[model.adj[v]] .!= k) .* model.f[model.adj[v]] )
     end
     #Rk .+= log(model.nk[k]/model.n)
 end
