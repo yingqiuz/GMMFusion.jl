@@ -382,8 +382,8 @@ end
 
 function logPrior!(Rk::AbstractArray{T}, model::Union{MRFBatchSeg{T}, PairedMRFBatchSeg{T}}, k::Int) where T <: Real
     for v ∈ 1:model.n
-        #Rk[v] -= sum([(model.seg[idx] != k) * model.f[idx] for idx in model.adj[v]])
-        Rk[v] -= sum( (model.seg[model.adj[v]] .!= k) .* model.f[v] )
+        #Rk[v] -= sum([(model.seg[idx] != k) * model.f[v][kkk] for (kkk, idx) ∈ enumerate(model.adj[v])])
+        Rk[v] -= sum( (model.seg[collect(model.adj[v])] .!= k) .* model.f[v] )
     end
     #Rk .+= log(model.nk[k]/model.n)
 end
