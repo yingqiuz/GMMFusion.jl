@@ -343,8 +343,8 @@ function expect!(model::Union{MRFBatchSeg{T}, MRFBatch{T}}, Xo::AbstractArray{T}
     end
     @debug "R" model.R
     copyto!(model.E1, model.R)
-    #Flux.softmax!(model.E2, dims=2)
-    model.R .+= @avx log.(Flux.softmax(model.E2, dims=2))
+    Flux.softmax!(model.E2, dims=2)
+    model.R .+= @avx log.(model.E2, dims=2)
     copyto!(model.llhmap, model.R)
     l = sum(Flux.logsumexp(model.R, dims=2)) / model.n
     #@info "model.R" model.R maximum(model.R)
