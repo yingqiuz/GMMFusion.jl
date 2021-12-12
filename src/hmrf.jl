@@ -14,8 +14,8 @@
     llh::AbstractArray{T} = convert(Array{eltype(X)}, fill(-Inf32, 10))
     kernel::Function = (foo(x, y) = exp( -sum((x .- y) .^ 2)/(2f0 * σ^2) ))
     f::AbstractArray = [[kernel(X[idx, :], X[kk, :]) for idx ∈ el] for (kk, el) ∈ enumerate(adj)]
-    E1::AbstractArray{T} = zeros(T, n, K)
-    E2::AbstractArray{T} = ones(T, n) .* (nk' ./ n)
+    E1::AbstractArray{T} = zeros(eltype(X), n, K)
+    E2::AbstractArray{T} = ones(eltype(X), n) .* (nk' ./ n)
     llhmap::AbstractArray{T} = convert(Array{eltype(X)}, fill(-Inf32, n, K))
 end
 
@@ -56,8 +56,8 @@ end
     llh::AbstractArray{T} = convert(Array{eltype(X)}, fill(-Inf32, 10))
     kernel::Function = (foo(x, y) = exp( -sum((x .- y) .^ 2)/(2f0 * σ^2) ))
     f::AbstractArray = [[kernel(X[idx, :], X[kk, :]) for idx ∈ el] for (kk, el) ∈ enumerate(adj)]
-    E1::AbstractArray{T} = zeros(T, n, K)
-    E2::AbstractArray{T} = ones(T, n) .* (nk' ./ n)
+    E1::AbstractArray{T} = zeros(eltype(X), n, K)
+    E2::AbstractArray{T} = ones(eltype(X), n) .* (nk' ./ n)
 end
 
 @with_kw mutable struct PairedMRFBatchSeg{T<:Real}
