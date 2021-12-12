@@ -80,6 +80,7 @@ function expect!(model::GMMBatch{T}, Xo::AbstractArray{T}) where T<:Real
     model.R .*= -0.5f0
     model.R .+= @avx log.(model.w')
     @debug "R" model.R
+    copyto!(model.llhmap, model.R)
     #copyto!(model.llhmap, Flux.logsumexp(model.R, dims=2))
     l = sum(Flux.logsumexp(model.R, dims=2)) / model.n
     #@info "model.R" model.R maximum(model.R)
