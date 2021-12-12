@@ -9,10 +9,14 @@
     nk::AbstractArray{T} = vec(sum(R, dims=1))
     μ::AbstractArray{T} = X' * R
     Σ::AbstractArray = [cholesky!(Hermitian(cov(X) + I * 1f-6)) for k in 1:K]
-    ω::T = convert(eltype(X), 10f0) # penalty rate
+    ω::T = convert(eltype(X), 1f0) # penalty rate
+    σ::T = convert(eltype(X), 1f0) # length scale
     llh::AbstractArray{T} = convert(Array{eltype(X)}, fill(-Inf32, 10))
-    kernel::Function = (foo(x, y) = exp( -sum((x .- y) .^ 2)/(2f0 * ω^2) ))
+    kernel::Function = (foo(x, y) = exp( -sum((x .- y) .^ 2)/(2f0 * σ^2) ))
     f::AbstractArray = [[kernel(X[idx, :], X[kk, :]) for idx ∈ el] for (kk, el) ∈ enumerate(adj)]
+    E1::AbstractArray{T} = zeros(T, n, K)
+    E2::AbstractArray{T} = ones(T, n) .* (nk' ./ n)
+    llhmap::AbstractArray{T} = convert(Array{eltype(X)}, fill(-Inf32, n, K))
 end
 
 @with_kw mutable struct PairedMRFBatch{T<:Real}
@@ -48,9 +52,12 @@ end
     μ::AbstractArray{T} = X' * R
     Σ::AbstractArray = [cholesky!(Hermitian(cov(X) + I * 1f-6)) for k in 1:K]
     ω::T = convert(eltype(X), 10f0) # penalty rate
+    σ::T = convert(eltype(X), 1f0) # length scale
     llh::AbstractArray{T} = convert(Array{eltype(X)}, fill(-Inf32, 10))
-    kernel::Function = (foo(x, y) = exp( -sum((x .- y) .^ 2)/(2f0 * ω^2) ))
+    kernel::Function = (foo(x, y) = exp( -sum((x .- y) .^ 2)/(2f0 * σ^2) ))
     f::AbstractArray = [[kernel(X[idx, :], X[kk, :]) for idx ∈ el] for (kk, el) ∈ enumerate(adj)]
+    E1::AbstractArray{T} = zeros(T, n, K)
+    E2::AbstractArray{T} = ones(T, n) .* (nk' ./ n)
 end
 
 @with_kw mutable struct PairedMRFBatchSeg{T<:Real}
@@ -323,6 +330,7 @@ function expect!(model::Union{MRFBatchSeg{T}, MRFBatch{T}}, Xo::AbstractArray{T}
     @inbounds for k ∈ 1:model.K
         Rk = view(model.R, :, k)
         μk = view(model.μ, :, k)
+        Ek = view(model.E2, :, k)
         # Gauss llh
         copyto!(Xo, model.X)
         Xo .-= μk'
@@ -330,9 +338,13 @@ function expect!(model::Union{MRFBatchSeg{T}, MRFBatch{T}}, Xo::AbstractArray{T}
         Rk .+= logdet(model.Σ[k]) + model.d * log(2π)
         Rk .*= -0.5f0
         # log prior
-        logPrior!(Rk, model, k)
+        logPrior!(Ek, model, k)
     end
     @debug "R" model.R
+    copyto!(model.E1, model.R)
+    #Flux.softmax!(model.E2, dims=2)
+    model.R .+= @avx log.(Flux.softmax(model.E2, dims=2))
+    copyto!(model.llhmap, model.R)
     l = sum(Flux.logsumexp(model.R, dims=2)) / model.n
     #@info "model.R" model.R maximum(model.R)
     Flux.softmax!(model.R, dims=2)
@@ -380,10 +392,11 @@ function expect!(
     return l
 end
 
-function logPrior!(Rk::AbstractArray{T}, model::Union{MRFBatchSeg{T}, PairedMRFBatchSeg{T}}, k::Int) where T <: Real
-    for v ∈ 1:model.n
+function logPrior!(Ek::AbstractArray{T}, model::Union{MRFBatchSeg{T}, PairedMRFBatchSeg{T}}, k::Int) where T <: Real
+    @inbounds for v ∈ 1:model.n
         #Rk[v] -= sum([(model.seg[idx] != k) * model.f[v][kkk] for (kkk, idx) ∈ enumerate(model.adj[v])])
-        Rk[v] -= sum( (model.seg[collect(model.adj[v])] .!= k) .* model.f[v] )
+        #Ek[v] = -model.ω * sum( (model.seg[collect(model.adj[v])] .!= k) .* model.f[v] )
+        Ek[v] = -model.ω * sum((model.seg[collect(model.adj[v])] .!= k))
     end
     #Rk .+= log(model.nk[k]/model.n)
 end
