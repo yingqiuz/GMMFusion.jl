@@ -337,12 +337,11 @@ function expect!(model::Union{MRFBatchSeg{T}, MRFBatch{T}}, Xo::AbstractArray{T}
         copyto!(Rk, diag((Xo / model.Σ[k]) * Xo'))
         Rk .+= logdet(model.Σ[k]) + model.d * log(2π)
         Rk .*= -0.5f0
-        # log prior
-        logPrior!(model, k)
     end
     @debug "R" model.R
     copyto!(model.E1, model.R)
-    Flux.softmax!(model.E2, dims=2)
+    # log prior
+    logPrior!(model)
     model.R .+= @avx log.(model.E2)
     copyto!(model.llhmap, model.R)
     l = sum(Flux.logsumexp(model.R, dims=2)) / model.n
@@ -381,10 +380,9 @@ function expect!(
         copyto!(Rk, diag((XLo / model.ΣL[k]) * XLo'))
         Rk .+= logdet(model.ΣL[k]) + model.dl * log(2π)
         Rk .*= -0.5f0
-        # log prior
-        logPrior!(model, k)
     end
-
+    # log prior
+    logPrior!(model)
     @debug "R" model.R
     l = sum(Flux.logsumexp(model.R, dims=2)) / model.n
     Flux.softmax!(model.R, dims=2)
@@ -392,22 +390,28 @@ function expect!(
     return l
 end
 
-function logPrior!(model::Union{MRFBatchSeg{T}, PairedMRFBatchSeg{T}}, k::Int) where T <: Real
-    Ek = view(model.E2, :, k)
-    @inbounds for v ∈ 1:model.n
-        #Rk[v] -= sum([(model.seg[idx] != k) * model.f[v][kkk] for (kkk, idx) ∈ enumerate(model.adj[v])])
-        Ek[v] = -model.ω * sum( (model.seg[collect(model.adj[v])] .!= k) .* model.f[v] )
-        #Ek[v] = -model.ω * sum((model.seg[collect(model.adj[v])] .!= k))
+function logPrior!(model::Union{MRFBatchSeg{T}, PairedMRFBatchSeg{T}}) where T <: Real
+    for k ∈ 1:model.K
+        Ek = view(model.E2, :, k)
+        @inbounds for v ∈ 1:model.n
+            #Rk[v] -= sum([(model.seg[idx] != k) * model.f[v][kkk] for (kkk, idx) ∈ enumerate(model.adj[v])])
+            Ek[v] = -model.ω * sum( (model.seg[collect(model.adj[v])] .!= k) .* model.f[v] )
+            #Ek[v] = -model.ω * sum((model.seg[collect(model.adj[v])] .!= k))
+        end
     end
+    Flux.softmax!(model.E2, dims=2)
     #Rk .+= log(model.nk[k]/model.n)
 end
 
-function logPrior!(model::Union{MRFBatch{T}, PairedMRFBatch{T}}, k::Int) where T <: Real
-    Ek = view(model.E2, :, k)
-    @inbounds for v ∈ 1:model.n
-        #Rk[v] += model.ω * sum([model.R[idx, k] for idx ∈ model.adj[v]])
-        Ek[v] = model.ω * sum(model.R[collect(model.adj[v]), k] .* model.f[v])
+function logPrior!(model::Union{MRFBatch{T}, PairedMRFBatch{T}}) where T <: Real
+    for k ∈ 1:model.K
+        Ek = view(model.E2, :, k)
+        @inbounds for v ∈ 1:model.n
+            #Rk[v] += model.ω * sum([model.R[idx, k] for idx ∈ model.adj[v]])
+            Ek[v] = model.ω * sum(model.R[collect(model.adj[v]), k] .* model.f[v])
+        end
     end
+    model.E2 ./= sum(model.E2, dims=2)
     #Rk .+= log(model.nk[k]/model.n)
 end
 
