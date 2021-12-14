@@ -395,8 +395,8 @@ function logPrior!(model::Union{MRFBatchSeg{T}, PairedMRFBatchSeg{T}}) where T <
         Ek = view(model.E2, :, k)
         @inbounds for v ∈ 1:model.n
             #Rk[v] -= sum([(model.seg[idx] != k) * model.f[v][kkk] for (kkk, idx) ∈ enumerate(model.adj[v])])
-            Ek[v] = -model.ω * sum( (model.seg[collect(model.adj[v])] .!= k) .* model.f[v] )
-            #Ek[v] = -model.ω * sum((model.seg[collect(model.adj[v])] .!= k))
+            #Ek[v] = -model.ω * sum( (model.seg[collect(model.adj[v])] .!= k) .* model.f[v] )
+            Ek[v] = -model.ω * sum((model.seg[collect(model.adj[v])] .!= k))
         end
     end
     Flux.softmax!(model.E2, dims=2)
