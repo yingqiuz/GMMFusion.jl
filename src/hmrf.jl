@@ -17,6 +17,11 @@
     E1::AbstractArray{T} = zeros(eltype(X), n, K)
     E2::AbstractArray{T} = ones(eltype(X), n) .* (nk' ./ n)
     llhmap::AbstractArray{T} = convert(Array{eltype(X)}, fill(-Inf32, n, K))
+    # record history
+    Rhistory::AbstractArray{T} = fill(-NaN32, n, 10)
+    E1history::AbstractArray{T} = fill(-NaN32, n, 10)
+    E2history::AbstractArray{T} = fill(-NaN32, n, 10)
+    llhmaphistory::AbstractArray{T} = fill(-NaN32, n, 10)
 end
 
 @with_kw mutable struct PairedMRFBatch{T<:Real}
@@ -59,6 +64,11 @@ end
     E1::AbstractArray{T} = zeros(eltype(X), n, K)
     E2::AbstractArray{T} = ones(eltype(X), n) .* (nk' ./ n)
     llhmap::AbstractArray{T} = convert(Array{eltype(X)}, fill(-Inf32, n, K))
+    # record history
+    Rhistory::AbstractArray{T} = fill(-NaN32, n, 10)
+    E1history::AbstractArray{T} = fill(-NaN32, n, 10)
+    E2history::AbstractArray{T} = fill(-NaN32, n, 10)
+    llhmaphistory::AbstractArray{T} = fill(-NaN32, n, 10)
 end
 
 @with_kw mutable struct PairedMRFBatchSeg{T<:Real}
@@ -132,12 +142,26 @@ function MrfMixGauss!(
 ) where T <: Real
     # likelihood vector
     L = fill(-Inf32, maxiter)
+    ### record history -- comment out
+    Rhistory = fill(-Inf32, model.n, maxiter)
+    E1history = fill(-Inf32, model.n, maxiter)
+    E2history = fill(-Inf32, model.n, maxiter)
+    llhmaphistory = fill(-Inf32, model.n, maxiter)
     # progress bar
     prog = ProgressUnknown("Running Markov Random Field Gaussian mixture...", dt=0.1, spinner=true)
     iter = 1
+    copyto!(view(Rhistory, :, iter), model.R[:, 2])
     while iter < maxiter
         iter += 1
         L[iter] = batch(model)
+        ######################################
+        #### comment out when necessary ######
+        copyto!(view(Rhistory, :, iter), model.R[:, 2])
+        copyto!(view(E1history, :, iter), model.E1[:, 2])
+        copyto!(view(E2history, :, iter), model.E2[:, 2])
+        copyto!(view(llhmaphistory, :, iter), model.llhmap[:, 2])
+        ######################################
+        ######################################
         incr = (L[iter] - L[iter-1]) / L[iter-1]
         ProgressMeter.next!(
             prog; showvalues = [(:iter, iter-1), (:incr, incr)]
@@ -145,6 +169,13 @@ function MrfMixGauss!(
         if abs(incr) < tol
             ProgressMeter.finish!(prog)
             model.llh = copy(L[2:iter])
+            ######################################
+            #### comment out when necessary ######
+            model.Rhistory = copy(Rhistory[:, 1:iter])
+            model.E1history = copy(E1history[:, 2:iter])
+            model.E2history = copy(E2history[:, 2:iter])
+            model.llhmaphistory = copy(llhmaphistory[:, 2:iter])
+            ######################################
             return model
         end
     end
