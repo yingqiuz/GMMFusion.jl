@@ -82,8 +82,11 @@ function maximise!(model::Union{GammaBatch{T}, MrfGammaBatch{T}}, bar::AbstractA
     @debug "model.R" model.R
     # update α
     mul!(model.θ, model.R' ./ model.nk, model.X)
+    @info "model.θ" model.θ
     mul!(bar, model.R' ./ model.nk, @avx log.(model.X .+ 1f-6))
+    @info "bar" bar
     bar .-= @avx log.(model.θ .+ 1f-6)
+    @info "bar" bar
     updateα!(model, bar, α₀, 1f-4)
     # update β
     model.θ ./= model.α
@@ -92,13 +95,13 @@ end
 
 function updateα!(model::Union{GammaBatch{T}, MrfGammaBatch{T}}, bar::AbstractArray{T}, α₀::AbstractArray{T}, tol::T=convert(T, 1f-5)) where T<:Real
     copyto!(α₀, rand(eltype(α₀), model.K))
-    @info "model.α" α₀ model.α bar
+    #@info "model.α" α₀ model.α bar
     @inbounds for k ∈ 1:model.K
         while ((abs(model.α[k] - α₀[k]) / α₀[k]) > tol)
             α₀[k] = copy(model.α[k])
             model.α[k] = 1 / (1 / α₀[k] + (bar[k] + log(α₀[k]) - digamma(α₀[k])) / (α₀[k] ^ 2 * (1 / α₀[k] - polygamma(1, α₀[k]))))
             model.α[k] += 1f-6
-            @info "model.α[k]" model.α[k]
+            #@info "model.α[k]" model.α[k]
             # α[k] = invdigamma(bar[k] + log(α[k]))
         end
     end
