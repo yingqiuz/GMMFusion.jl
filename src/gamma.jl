@@ -105,7 +105,7 @@ function updateα!(model::Union{GammaBatch{T}, MrfGammaBatch{T}}, bar::AbstractA
             # α[k] = invdigamma(bar[k] + log(α[k]))
         end
     end
-    @info "model.α" α₀ model.α
+    @debug "model.α" α₀ model.α
 end
 
 function expect!(model::GammaBatch{T}) where T<:Real
@@ -114,7 +114,7 @@ function expect!(model::GammaBatch{T}) where T<:Real
         # Gamma pdf
         copyto!(Rk, pdf.(Gamma(model.α[k], model.θ[k]), model.X))
     end
-    @info "R, w" model.R model.w
+    @debug "R, w" model.R model.w
     model.R .*= model.w'
     #@info "R" model.R
     l = sum(@avx log.(sum(model.R, dims=2))) / model.n
