@@ -30,6 +30,8 @@ end
     m::AbstractVector{T} = R' * X ./ nk
     θ::AbstractVector{T} = vec(var(sqrt.(R) .* (X .- m'), dims=1)) .* n ./ (R' * X)
     α::AbstractVector{T} = (R' * X ./ nk) ./ θ
+    ω::T = convert(eltype(X), 10f0) # penalty rate
+    σ::T = convert(eltype(X), 1f0) # length scale
     #Σ::AbstractArray = [cholesky!(Hermitian(cov(X) + I * 1f-6)) for k in 1:K]
     llh::AbstractArray{T} = convert(Array{eltype(X)}, fill(-Inf32, 10))
     llhmap::AbstractArray{T} = zeros(eltype(X), n, K)
@@ -85,12 +87,12 @@ function maximise!(model::Union{GammaBatch{T}, MrfGammaBatch{T}}, bar::AbstractA
     updateα!(model, bar, α₀, 1f-4)
     # update β
     model.θ ./= model.α
-    @debug "model.θ" model.θ
+    @info "model.θ" model.θ
 end
 
 function updateα!(model::Union{GammaBatch{T}, MrfGammaBatch{T}}, bar::AbstractArray{T}, α₀::AbstractArray{T}, tol::T=convert(T, 1f-5)) where T<:Real
     copyto!(α₀, rand(eltype(α₀), model.K))
-    @debug "model.α" α₀ model.α
+    @info "model.α" α₀ model.α
     @inbounds for k ∈ 1:model.K
         while ((abs(model.α[k] - α₀[k]) / α₀[k]) > tol)
             α₀[k] = copy(model.α[k])
@@ -98,7 +100,7 @@ function updateα!(model::Union{GammaBatch{T}, MrfGammaBatch{T}}, bar::AbstractA
             # α[k] = invdigamma(bar[k] + log(α[k]))
         end
     end
-    @debug "model.α" α₀ model.α
+    @info "model.α" α₀ model.α
 end
 
 function expect!(model::GammaBatch{T}) where T<:Real
