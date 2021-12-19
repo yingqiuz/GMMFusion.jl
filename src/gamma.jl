@@ -100,7 +100,7 @@ function updateα!(model::Union{GammaBatch{T}, MrfGammaBatch{T}}, bar::AbstractA
         while ((abs(model.α[k] - α₀[k]) / α₀[k]) > tol)
             @info "model.α[k]" k model.α[k]
             α₀[k] = copy(model.α[k])
-            model.α[k] = 1 / (1 / α₀[k] + (bar[k] + log(α₀[k]) - digamma(α₀[k])) / (α₀[k] ^ 2 * (1 / α₀[k] - polygamma(1, α₀[k]))))
+            model.α[k] = 1 / (1f-6 + 1 / α₀[k] + (bar[k] + log(α₀[k]) - digamma(α₀[k])) / (α₀[k] ^ 2 * (1 / α₀[k] - polygamma(1, α₀[k]))))
             model.α[k] += 1f-6
             # α[k] = invdigamma(bar[k] + log(α[k]))
         end
