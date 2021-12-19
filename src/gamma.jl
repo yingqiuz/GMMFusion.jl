@@ -42,7 +42,7 @@ function mixGamma!(
     tol::T=convert(T, 1f-6), maxiter::Int=1000
 ) where T<:Real
     # likelihood vector
-    L = fill(-Inf32, maxiter)
+    L = fill(convert(eltype(model.X), -Inf32), maxiter)
     # progress bar
     prog = ProgressUnknown("Running Gamma mixture model...", dt=0.1, spinner=true)
     iter = 1
@@ -112,14 +112,16 @@ function expect!(model::GammaBatch{T}) where T<:Real
     @inbounds for k ∈ 1:model.K
         Rk = view(model.R, :, k)
         # Gamma pdf
-        copyto!(Rk, pdf.(Gamma(model.α[k], model.θ[k]), model.X))
+        copyto!(Rk, logpdf.(Gamma(model.α[k], model.θ[k]), model.X))
     end
     @info "R, w" model.R model.w
-    model.R .*= model.w'
+    model.R .+= @avx log.(model.w')
     @info "R" model.R
-    l = sum(@avx log.(sum(model.R, dims=2))) / model.n
+    #l = sum(@avx log.(sum(model.R, dims=2))) / model.n
+    l = sum(Flux.logsumexp(model.R, dims=2)) / model.n
     #@info "model.R" model.R maximum(model.R)
-    model.R ./= sum(model.R, dims=2)
+    #model.R ./= sum(model.R, dims=2)
+    Flux.softmax!(model.R, dims=2)
     # deal with inf
     @info "R" model.R
     return l
