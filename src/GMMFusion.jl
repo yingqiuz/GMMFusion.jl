@@ -11,8 +11,9 @@ using Parameters
 using SpecialFunctions
 import Flux
 
-export EM, EM!, GMM, FusedGMM, predict, MrfMixGauss, MrfMixGauss!, MRFBatch, MRFBatchSeg, expect!, rando
+export EM, EM!, GMM, FusedGMM, predict, MrfMixGauss, MrfMixGauss!, MRFBatch, MRFBatchSeg, expect!, rando, segment!
 export MixGauss!, GMMBatch
+export GammaBatch, MrfGammaBatch, MixGamma!
 
 struct GMM{T<:Real}
     K::Int
@@ -36,6 +37,7 @@ end
 include("gmm.jl")
 include("fusion.jl")
 include("vb.jl")
+include("gamma.jl")
 include("hmrf.jl")
 
 end
