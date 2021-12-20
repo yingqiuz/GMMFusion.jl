@@ -84,9 +84,9 @@ function maximise!(model::Union{GammaBatch{T}, MrfGammaBatch{T}}, bar::AbstractA
     mul!(model.θ, model.R' ./ model.nk, model.X)
     #@info "model.θ" model.θ
     mul!(bar, model.R' ./ model.nk, @avx log.(model.X .+ 1f-6))
-    #@info "bar" bar
+    @info "bar" bar
     bar .-= @avx log.(model.θ .+ 1f-6)
-    #@info "bar" bar
+    @info "bar" bar
     updateα!(model, bar, α₀, 1f-4)
     # update β
     model.θ ./= model.α
