@@ -121,7 +121,7 @@ function expect!(model::GammaBatch{T}) where T<:Real
     #l = sum(Flux.logsumexp(model.R, dims=2)) / model.n
     #@info "model.R" model.R maximum(model.R)
     model.R ./= sum(model.R, dims=2)
-    model.R[isnan(model.R)] .= 0
+    model.R[isnan.(model.R)] .= 0
     #Flux.softmax!(model.R, dims=2)
     # deal with inf
     #@info "R" model.R
