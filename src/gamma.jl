@@ -82,23 +82,23 @@ function maximise!(model::Union{GammaBatch{T}, MrfGammaBatch{T}}, bar::AbstractA
     @debug "model.R" model.R
     # update α
     mul!(model.θ, model.R' ./ model.nk, model.X)
-    #@info "model.θ" model.θ
+    #@debug "model.θ" model.θ
     mul!(bar, model.R' ./ model.nk, @avx log.(model.X .+ 1f-6))
-    @info "bar" bar
+    @debug "bar" bar
     bar .-= @avx log.(model.θ .+ 1f-6)
-    @info "bar" bar
+    @debug "bar" bar
     updateα!(model, bar, α₀, 1f-4)
     # update β
     model.θ ./= model.α
-    #@info "model.θ" model.θ
+    #@debug "model.θ" model.θ
 end
 
 function updateα!(model::Union{GammaBatch{T}, MrfGammaBatch{T}}, bar::AbstractArray{T}, α₀::AbstractArray{T}, tol::T=convert(T, 1f-5)) where T<:Real
     copyto!(α₀, model.α .+ rand(eltype(α₀), model.K))
-    #@info "model.α" α₀ model.α bar
+    #@debug "model.α" α₀ model.α bar
     @inbounds for k ∈ 1:model.K
         while ((abs(model.α[k] - α₀[k]) / α₀[k]) > tol)
-            @info "model.α[k]" k model.α[k]
+            @debug "model.α[k]" k model.α[k]
             α₀[k] = copy(model.α[k])
             model.α[k] = 1 / (1f-6 + 1 / α₀[k] + (bar[k] + log(α₀[k]) - digamma(α₀[k])) / (α₀[k] ^ 2 * (1 / α₀[k] - polygamma(1, α₀[k]))))
             model.α[k] += 1f-6
@@ -114,12 +114,12 @@ function expect!(model::GammaBatch{T}) where T<:Real
         # Gamma pdf
         copyto!(Rk, pdf.(Gamma(model.α[k], model.θ[k]), model.X))
     end
-    @info "R, w" model.R model.w
+    @debug "R, w" model.R model.w
     model.R .*= model.w'
-    #@info "R" model.R
+    #@debug "R" model.R
     l = sum(@avx log.(sum(model.R, dims=2))) / model.n
     #l = sum(Flux.logsumexp(model.R, dims=2)) / model.n
-    #@info "model.R" model.R maximum(model.R)
+    #@debug "model.R" model.R maximum(model.R)
     model.R ./= sum(model.R, dims=2)
     sum!(model.nk, model.R')
     if 0 ∈ model.nk
@@ -128,7 +128,7 @@ function expect!(model::GammaBatch{T}) where T<:Real
     end
     #Flux.softmax!(model.R, dims=2)
     # deal with inf
-    #@info "R" model.R
+    #@debug "R" model.R
     return l
 end
 
@@ -142,7 +142,7 @@ function expect!(model::MrfGammaBatch{T}) where T<:Real
     model.R .*= model.E2
     @debug "R" model.R
     l = sum(@avx log.(sum(model.R, dims=2))) / model.n
-    #@info "model.R" model.R maximum(model.R)
+    #@debug "model.R" model.R maximum(model.R)
     model.R ./= sum(model.R, dims=2)
     # deal with inf
     @debug "R" model.R
