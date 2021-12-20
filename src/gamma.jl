@@ -114,7 +114,7 @@ function expect!(model::GammaBatch{T}) where T<:Real
         # Gamma pdf
         copyto!(Rk, pdf.(Gamma(model.α[k], model.θ[k]), model.X))
     end
-    @debug "R, w" model.R model.w
+    @info "R, w" model.R model.w
     model.R .*= model.w'
     #@info "R" model.R
     l = sum(@avx log.(sum(model.R, dims=2))) / model.n
