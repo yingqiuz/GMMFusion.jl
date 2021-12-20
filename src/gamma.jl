@@ -78,7 +78,7 @@ function maximise!(model::Union{GammaBatch{T}, MrfGammaBatch{T}}, bar::AbstractA
     # posterior parameters
     # update mixing weights
     sum!(model.nk, model.R')
-    model.nk .+= 1f-8
+    #model.nk .+= 1f-8
     copyto!(model.w, model.nk ./ model.n)
     @debug "model.R" model.R
     # update α
@@ -123,11 +123,11 @@ function expect!(model::GammaBatch{T}) where T<:Real
     #l = sum(Flux.logsumexp(model.R, dims=2)) / model.n
     #@debug "model.R" model.R maximum(model.R)
     model.R ./= sum(model.R, dims=2)
-    #sum!(model.nk, model.R')
-    #if 0 ∈ model.nk
-    #    model.R[:, iszero.(model.nk)] .+= 1f-8
-    #    model.R ./= sum(model.R, dims=2)
-    #end
+    sum!(model.nk, model.R')
+    if 0 ∈ model.nk
+        model.R[:, iszero.(model.nk)] .+= 1f-8
+        model.R ./= sum(model.R, dims=2)
+    end
     #Flux.softmax!(model.R, dims=2)
     # deal with inf
     #@debug "R" model.R
