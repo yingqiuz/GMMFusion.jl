@@ -113,6 +113,7 @@ function expect!(model::GammaBatch{T}) where T<:Real
         Rk = view(model.R, :, k)
         # Gamma pdf
         copyto!(Rk, pdf.(Gamma(model.α[k], model.θ[k]), model.X))
+        Rk[isnan.(Rk)] .= 0
     end
     @info "R, w" model.R model.w
     model.R .*= model.w'
