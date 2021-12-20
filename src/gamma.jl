@@ -84,7 +84,7 @@ function maximise!(model::Union{GammaBatch{T}, MrfGammaBatch{T}}, bar::AbstractA
     mul!(model.θ, model.R' ./ model.nk, model.X)
     #@debug "model.θ" model.θ
     mul!(bar, model.R' ./ model.nk, @avx log.(model.X .+ 1f-6))
-    @debug "bar" bar
+    @info "bar" bar
     bar .-= @avx log.(model.θ .+ 1f-6)
     @debug "bar" bar
     updateα!(model, bar, α₀, 1f-4)
@@ -114,7 +114,7 @@ function expect!(model::GammaBatch{T}) where T<:Real
         # Gamma pdf
         copyto!(Rk, pdf.(Gamma(model.α[k], model.θ[k]), model.X))
     end
-    @debug "R, w" model.R model.w
+    @info "R, w" model.R model.w
     model.R .*= model.w'
     #@debug "R" model.R
     l = sum(@avx log.(sum(model.R, dims=2))) / model.n
