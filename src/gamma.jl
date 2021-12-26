@@ -91,7 +91,7 @@ function maximise!(model::Union{GammaBatch{T}, MrfGammaBatch{T}}, bar::AbstractA
     updateα!(model, bar, α₀, 1f-4)
     # update β
     model.θ ./= model.α
-    #@debug "model.θ" model.θ
+    @info "model.θ" model.θ
 end
 
 function updateα!(model::Union{GammaBatch{T}, MrfGammaBatch{T}}, bar::AbstractArray{T}, α₀::AbstractArray{T}, tol::T=convert(T, 1f-5)) where T<:Real
@@ -115,9 +115,10 @@ function expect!(model::GammaBatch{T}) where T<:Real
         Rk = view(model.R, :, k)
         # Gamma pdf
         copyto!(Rk, pdf.(Gamma(model.α[k], model.θ[k]), model.X))
+        @info "Rk" k Rk
         Rk[isnan.(Rk)] .= 0
     end
-    @info "R, w" model.R model.w
+    #@info "R, w" model.R model.w
     model.R .*= model.w'
     #@debug "R" model.R
     l = sum(@avx log.(sum(model.R, dims=2))) / model.n
