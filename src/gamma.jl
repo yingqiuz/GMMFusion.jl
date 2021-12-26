@@ -96,12 +96,13 @@ end
 
 function updateα!(model::Union{GammaBatch{T}, MrfGammaBatch{T}}, bar::AbstractArray{T}, α₀::AbstractArray{T}, tol::T=convert(T, 1f-5)) where T<:Real
     copyto!(α₀, model.α .+ rand(eltype(α₀), model.K))
-    #@debug "model.α" α₀ model.α bar
+    @info "model.α" α₀ model.α bar
     @inbounds for k ∈ 1:model.K
         while ((abs(model.α[k] - α₀[k]) / α₀[k]) > tol)
-            @debug "model.α[k]" k model.α[k]
+            @info "model.α[k]" k model.α[k]
             α₀[k] = copy(model.α[k])
             model.α[k] = 1 / (1f-6 + 1 / α₀[k] + (bar[k] + log(α₀[k]) - digamma(α₀[k])) / (α₀[k] ^ 2 * (1 / α₀[k] - polygamma(1, α₀[k]))))
+            @info "model.α[k]" k model.α[k]
             model.α[k] += 1f-6
             # α[k] = invdigamma(bar[k] + log(α[k]))
         end
