@@ -114,23 +114,23 @@ function expect!(model::GammaBatch{T}) where T<:Real
     @inbounds for k ∈ 1:model.K
         Rk = view(model.R, :, k)
         # Gamma pdf
-        copyto!(Rk, pdf.(Gamma(model.α[k], model.θ[k]), model.X))
+        copyto!(Rk, logpdf.(Gamma(model.α[k], model.θ[k]), model.X))
         @info "Rk" k Rk
-        Rk[isnan.(Rk)] .= 0
+        #Rk[isnan.(Rk)] .= 0
     end
     #@info "R, w" model.R model.w
-    model.R .*= model.w'
+    model.R .+= @avx log.(model.w')
     #@debug "R" model.R
-    l = sum(@avx log.(sum(model.R, dims=2))) / model.n
-    #l = sum(Flux.logsumexp(model.R, dims=2)) / model.n
+    #l = sum(@avx log.(sum(model.R, dims=2))) / model.n
+    l = sum(Flux.logsumexp(model.R, dims=2)) / model.n
     #@debug "model.R" model.R maximum(model.R)
-    model.R ./= sum(model.R, dims=2)
-    sum!(model.nk, model.R')
-    if 0 ∈ model.nk
-        model.R[:, iszero.(model.nk)] .+= 1f-8
-        model.R ./= sum(model.R, dims=2)
-    end
-    #Flux.softmax!(model.R, dims=2)
+    Flux.softmax!(model.R, dims=2)
+    #model.R ./= sum(model.R, dims=2)
+    #sum!(model.nk, model.R')
+    #if 0 ∈ model.nk
+    #    model.R[:, iszero.(model.nk)] .+= 1f-8
+    #    model.R ./= sum(model.R, dims=2)
+    #end
     # deal with inf
     #@debug "R" model.R
     return l
