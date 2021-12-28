@@ -6,7 +6,8 @@
     d::Int = size(X, 2)
     R::AbstractArray{T} = convert(Array{eltype(X)}, fill(1f0 / K, n, K))
     nk::AbstractVector{T} = vec(sum(R, dims=1))
-    w::AbstractVector{T} = nk ./ n
+    w₀::AbstractVector{T} = convert(Vector{eltype(X)}, [0.5, 0.5])
+    w::AbstractVector{T} = convert(Vector{eltype(X)}, nk ./ n)
     m::AbstractVector{T} = R' * X ./ nk
     θ::AbstractVector{T} = vec(var(sqrt.(R) .* (X .- m'), dims=1)) .* n ./ (R' * X)
     α::AbstractVector{T} = (R' * X ./ nk) ./ θ
@@ -25,7 +26,8 @@ end
     R::AbstractArray{T} = convert(Array{eltype(X)}, fill(1f0 / K, n, K))
     E2::AbstractArray{T} = copy(R)
     nk::AbstractVector{T} = vec(sum(R, dims=1))
-    w::AbstractVector{T} = nk ./ n
+    w₀::AbstractVector{T} = convert(Vector{eltype(X)}, [0.5, 0.5])
+    w::AbstractVector{T} = convert(Vector{eltype(X)}, nk ./ n)
     seg::AbstractArray{Int} = Flux.onecold(R', 1:K)
     m::AbstractVector{T} = R' * X ./ nk
     θ::AbstractVector{T} = vec(var(sqrt.(R) .* (X .- m'), dims=1)) .* n ./ (R' * X)
@@ -79,8 +81,13 @@ function maximise!(model::Union{GammaBatch{T}, MrfGammaBatch{T}}, bar::AbstractA
     # update mixing weights
     sum!(model.nk, model.R')
     #model.nk .+= 1f-8
-    copyto!(model.w, model.nk ./ model.n)
-    @debug "model.R" model.R
+    copyto!(model.w, model.w₀ .+ model.nk)
+    # calculate E lnπk
+    @inbounds for k ∈ 1:model.K 
+        model.w[k] = digamma(model.w[k])
+    end
+    model.w .-= digamma(sum(model.w₀) + model.n)
+    @info "model.w" model.w
     # update α
     mul!(model.θ, model.R' ./ model.nk, model.X)
     #@debug "model.θ" model.θ
@@ -119,7 +126,7 @@ function expect!(model::GammaBatch{T}) where T<:Real
         #Rk[isnan.(Rk)] .= 0
     end
     #@info "R, w" model.R model.w
-    model.R .+= @avx log.(model.w')
+    model.R .+= @avx model.w'
     #@debug "R" model.R
     #l = sum(@avx log.(sum(model.R, dims=2))) / model.n
     l = sum(Flux.logsumexp(model.R, dims=2)) / model.n
