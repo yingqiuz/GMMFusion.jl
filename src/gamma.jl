@@ -118,6 +118,7 @@ function expect!(model::GammaBatch{T}) where T<:Real
         @info "Rk" k Rk
         #Rk[isnan.(Rk)] .= 0
     end
+    copyto!(model.llhmap, model.R)
     #@info "R, w" model.R model.w
     model.R .+= @avx log.(model.w')
     #@debug "R" model.R
