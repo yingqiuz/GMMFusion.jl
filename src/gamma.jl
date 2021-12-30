@@ -91,7 +91,7 @@ function maximise!(model::Union{GammaBatch{T}, MrfGammaBatch{T}}, bar::AbstractA
     updateα!(model, bar, α₀, 1f-4)
     # update β
     model.θ ./= model.α
-    @info "model.θ" model.θ
+    #@info "model.θ" model.θ
 end
 
 function updateα!(model::Union{GammaBatch{T}, MrfGammaBatch{T}}, bar::AbstractArray{T}, α₀::AbstractArray{T}, tol::T=convert(T, 1f-5)) where T<:Real
@@ -99,10 +99,10 @@ function updateα!(model::Union{GammaBatch{T}, MrfGammaBatch{T}}, bar::AbstractA
     @info "model.α" α₀ model.α bar
     @inbounds for k ∈ 1:model.K
         while ((abs(model.α[k] - α₀[k]) / α₀[k]) > tol)
-            @info "model.α[k]" k model.α[k]
+            #@info "model.α[k]" k model.α[k]
             α₀[k] = copy(model.α[k])
             model.α[k] = 1 / (1f-6 + 1 / α₀[k] + (bar[k] + log(α₀[k]) - digamma(α₀[k])) / (α₀[k] ^ 2 * (1 / α₀[k] - polygamma(1, α₀[k]))))
-            @info "model.α[k]" k model.α[k]
+            #@info "model.α[k]" k model.α[k]
             model.α[k] += 1f-6
             # α[k] = invdigamma(bar[k] + log(α[k]))
         end
@@ -115,7 +115,7 @@ function expect!(model::GammaBatch{T}) where T<:Real
         Rk = view(model.R, :, k)
         # Gamma pdf
         copyto!(Rk, logpdf.(Gamma(model.α[k], model.θ[k]), model.X))
-        @info "Rk" k Rk
+        #@info "Rk" k Rk
         #Rk[isnan.(Rk)] .= 0
     end
     copyto!(model.llhmap, model.R)
