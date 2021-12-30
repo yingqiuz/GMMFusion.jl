@@ -96,7 +96,7 @@ end
 
 function updateα!(model::Union{GammaBatch{T}, MrfGammaBatch{T}}, bar::AbstractArray{T}, α₀::AbstractArray{T}, tol::T=convert(T, 1f-5)) where T<:Real
     copyto!(α₀, model.α .+ rand(eltype(α₀), model.K))
-    @info "model.α" α₀ model.α bar
+    #@info "model.α" α₀ model.α bar
     @inbounds for k ∈ 1:model.K
         while ((abs(model.α[k] - α₀[k]) / α₀[k]) > tol)
             #@info "model.α[k]" k model.α[k]
