@@ -14,6 +14,7 @@ import Flux
 export EM, EM!, GMM, FusedGMM, predict, MrfMixGauss, MrfMixGauss!, MRFBatch, MRFBatchSeg, expect!, rando, segment!
 export MixGauss!, GMMBatch
 export GammaBatch, MrfGammaBatch, MixGamma!
+export GaussGammaBatch, MrfGaussGammaBatch, MixGaussGamma!
 
 struct GMM{T<:Real}
     K::Int
@@ -38,6 +39,7 @@ include("gmm.jl")
 include("fusion.jl")
 include("vb.jl")
 include("gamma.jl")
+include("gaussgamma.jl")
 include("hmrf.jl")
 
 end
