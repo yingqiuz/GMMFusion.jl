@@ -447,7 +447,7 @@ function logPrior!(model::Union{MRFBatch{T}, PairedMRFBatch{T}}) where T <: Real
     #Rk .+= log(model.nk[k]/model.n)
 end
 
-function segment!(model::Union{MRFBatchSeg{T}, PairedMRFBatchSeg{T}, MrfGammaBatch{T}}) where T<:Real
+function segment!(model::Union{MRFBatchSeg{T}, PairedMRFBatchSeg{T}, MrfGammaBatch{T}, MrfGaussGammaBatch{T}}) where T<:Real
     copyto!(model.seg, Flux.onecold(model.R', 1:model.K))
     model
 end
