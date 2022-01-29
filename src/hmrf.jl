@@ -227,6 +227,7 @@ function batch(model::MRFBatch{T}) where T <: Real
     # M step
     maximise!(model, Xo)
     # E step
+    copyto!(model.E1, model.R)
     expect!(model, Xo)
 end
 
@@ -236,6 +237,7 @@ function batch(model::PairedMRFBatch{T}) where T <: Real
     # M step
     maximise!(model, XHo, XLo)
     # E step
+    copyto!(model.E1, model.R)
     expect!(model, XHo, XLo)
 end
 
@@ -373,7 +375,7 @@ function expect!(model::Union{MRFBatchSeg{T}, MRFBatch{T}}, Xo::AbstractArray{T}
     copyto!(model.E1, model.R)
     # log prior
     logPrior!(model)
-    model.R .+= @avx log.(model.E2)
+    model.R .+= model.E2
     copyto!(model.llhmap, model.R)
     l = sum(Flux.logsumexp(model.R, dims=2)) / model.n
     #@info "model.R" model.R maximum(model.R)
@@ -430,7 +432,7 @@ function logPrior!(model::Union{MRFBatchSeg{T}, PairedMRFBatchSeg{T}}) where T <
             Ek[v] = -model.ω * sum((model.seg[collect(model.adj[v])] .!= k))
         end
     end
-    Flux.softmax!(model.E2, dims=2)
+    #Flux.softmax!(model.E2, dims=2)
     #Rk .+= log(model.nk[k]/model.n)
 end
 
@@ -440,10 +442,10 @@ function logPrior!(model::Union{MRFBatch{T}, PairedMRFBatch{T}}) where T <: Real
         @inbounds for v ∈ 1:model.n
             #Rk[v] += model.ω * sum([model.R[idx, k] for idx ∈ model.adj[v]])
             #Ek[v] = model.ω * sum(model.R[collect(model.adj[v]), k] .* model.f[v])
-            Ek[v] = model.ω * sum(model.R[collect(model.adj[v]), k])
+            Ek[v] = -model.ω * sum((model.E1[collect(model.adj[v]), :] .- model.E1[v, :]') .^ 2)
         end
     end
-    model.E2 ./= sum(model.E2, dims=2)
+    #model.E2 ./= sum(model.E2, dims=2)
     #Rk .+= log(model.nk[k]/model.n)
 end
 
