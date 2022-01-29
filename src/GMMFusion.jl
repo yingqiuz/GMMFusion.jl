@@ -39,7 +39,8 @@ include("gmm.jl")
 include("fusion.jl")
 include("vb.jl")
 include("gamma.jl")
-include("hmrf.jl")
 include("mrf.jl")
+include("hmrf.jl")
+
 
 end
