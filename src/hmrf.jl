@@ -421,7 +421,7 @@ function expect!(
     return l
 end
 
-function logPrior!(model::Union{MRFBatchSeg{T}, PairedMRFBatchSeg{T}}) where T <: Real
+function logPrior!(model::Union{MRFBatchSeg{T}, PairedMRFBatchSeg{T}, MrfBatch{T}}) where T <: Real
     for k ∈ 1:model.K
         Ek = view(model.E2, :, k)
         @inbounds for v ∈ 1:model.n
@@ -447,7 +447,7 @@ function logPrior!(model::Union{MRFBatch{T}, PairedMRFBatch{T}}) where T <: Real
     #Rk .+= log(model.nk[k]/model.n)
 end
 
-function segment!(model::Union{MRFBatchSeg{T}, PairedMRFBatchSeg{T}, MrfGammaBatch{T}}) where T<:Real
+function segment!(model::Union{MRFBatchSeg{T}, PairedMRFBatchSeg{T}, MrfGammaBatch{T}, MrfBatch{T}}) where T<:Real
     copyto!(model.seg, Flux.onecold(model.R', 1:model.K))
     model
 end
