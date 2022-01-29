@@ -442,7 +442,7 @@ function logPrior!(model::Union{MRFBatch{T}, PairedMRFBatch{T}}) where T <: Real
         @inbounds for v ∈ 1:model.n
             #Rk[v] += model.ω * sum([model.R[idx, k] for idx ∈ model.adj[v]])
             #Ek[v] = model.ω * sum(model.R[collect(model.adj[v]), k] .* model.f[v])
-            Ek[v] = -model.ω * sum((model.E1[collect(model.adj[v]), :] .- model.E1[v, :]') .^ 2)
+            Ek[v] = -model.ω * sum((model.E1[collect(model.adj[v]), k] .- model.E1[v, k]) .^ 2)
         end
     end
     #model.E2 ./= sum(model.E2, dims=2)
