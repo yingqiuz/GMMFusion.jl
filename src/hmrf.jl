@@ -372,7 +372,7 @@ function expect!(model::Union{MRFBatchSeg{T}, MRFBatch{T}}, Xo::AbstractArray{T}
         Rk .*= -0.5f0
     end
     @debug "R" model.R
-    copyto!(model.E1, model.R)
+    #copyto!(model.E1, model.R)
     # log prior
     logPrior!(model)
     model.R .+= model.E2
